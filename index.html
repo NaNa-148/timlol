@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>תמלול עברית AI - Hebrew Audio Transcription</title>
+    <meta name="description" content="תמלול אודיו לטקסט בעברית באמצעות בינה מלאכותית">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 900px;
+            width: 100%;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+        }
+
+        .info-box {
+            background: rgba(40, 167, 69, 0.1);
+            border: 2px solid #28a745;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .info-text {
+            color: #155724;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .info-subtext {
+            color: #155724;
+            font-size: 0.9rem;
+        }
+
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 60px 20px;
+            text-align: center;
+            margin-bottom: 30px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: rgba(118, 75, 162, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .upload-area.dragover {
+            border-color: #764ba2;
+            background: rgba(118, 75, 162, 0.15);
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 4rem;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .upload-text {
+            font-size: 1.3rem;
+            color: #333;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .upload-subtext {
+            color: #666;
+            font-size: 0.95rem;
+            margin-bottom: 20px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .select-button {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .select-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .options {
+            background: rgba(102, 126, 234, 0.05);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+
+        .option-group {
+            margin-bottom: 20px;
+        }
+
+        .option-label {
+            display: block;
+            margin-bottom: 12px;
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1rem;
+        }
+
+        .api-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            margin-bottom: 15px;
+            transition: border-color 0.3s ease;
+        }
+
+        .api-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .option-row {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .toggle {
+            position: relative;
+            width: 50px;
+            height: 25px;
+            background: #ddd;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .toggle.active {
+            background: #667eea;
+        }
+
+        .toggle::after {
+            content: '';
+            position: absolute;
+            width: 21px;
+            height: 21px;
+            border-radius: 50%;
+            background: white;
+            top: 2px;
+            left: 2px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .toggle.active::after {
+            transform: translateX(25px);
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .slider {
+            flex: 1;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .slider:hover {
+            opacity: 1;
+        }
+
+        .slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            border: none;
+        }
+
+        .slider-value {
+            min-width: 40px;
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .checkbox {
+            width: 20px;
+            height: 20px;
+            margin-left: 10px;
+        }
+
+        .transcribe-button {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 18px;
+            border-radius: 15px;
+            font-size: 1.3rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+            margin-bottom: 30px;
+        }
+
+        .transcribe-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(102, 126, 234, 0.4);
+        }
+
+        .transcribe-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 4px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .result-area {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            border: 2px solid #f0f0f0;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .result-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .download-button {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .download-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+        }
+
+        .transcript-text {
+            font-size: 1.1rem;
+            line-height: 1.8;
+            color: #333;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border-right: 4px solid #667eea;
+            min-height: 200px;
+            white-space: pre-wrap;
+            font-family: 'Arial', sans-serif;
+        }
+
+        .file-info {
+            background: rgba(40, 167, 69, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: none;
+            border-right: 4px solid #28a745;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: #28a745;
+            margin-bottom: 5px;
+        }
+
+        .file-size {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .audio-preview {
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            display: none;
+        }
+
+        .audio-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .audio-player {
+            flex: 1;
+            height: 40px;
+        }
+
+        .process-button {
+            background: linear-gradient(135deg, #17a2b8, #138496);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .process-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(23, 162, 184, 0.3);
+        }
+
+        .status {
+            text-align: center;
+            margin: 20px 0;
+            font-weight: 600;
+            display: none;
+        }
+
+        .status.processing {
+            color: #667eea;
+        }
+
+        .status.success {
+            color: #28a745;
+        }
+
+        .status.error {
+            color: #dc3545;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .canvas-container {
+            margin: 15px 0;
+            text-align: center;
+        }
+
+        .waveform-canvas {
+            width: 100%;
+            max-width: 600px;
+            height: 100px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+
+        .error-details {
+            background: #fee;
+            border: 1px solid #fcc;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+            font-size: 0.9rem;
+            color: #800;
+            direction: ltr;
+            text-align: left;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+            
+            .title {
+                font-size: 2rem;
+            }
+            
+            .upload-area {
+                padding: 40px 15px;
+            }
+            
+            .option-row {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+
+            .audio-controls {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">תמלול עברית AI</h1>
+            <p class="subtitle">המר אודיו לטקסט בעברית באמצעות בינה מלאכותית מתקדמת</p>
+        </div>
+
+        <div class="info-box">
+            <div class="info-text">מוכן לשימוש! 🚀</div>
+            <div class="info-subtext">הזן את מפתח OpenAI API שלך למטה והתחל לתמלל</div>
+        </div>
+
+        <div class="options">
+            <div class="option-group">
+                <label class="option-label">🔑 מפתח OpenAI API</label>
+                <input type="password" id="apiKey" class="api-input" placeholder="sk-proj-..." 
+                       autocomplete="off" spellcheck="false">
+                <small style="color: #666;">המפתח נשמר רק בזיכרון הדפדפן ולא נשלח לאף מקום אחר</small>
+            </div>
+        </div>
+
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">🎤</div>
+            <div class="upload-text">גרור קובץ אודיו לכאן או לחץ לבחירה</div>
+            <div class="upload-subtext">תומך ב-MP3, WAV, M4A, MP4, WEBM, FLAC (עד 25MB)</div>
+            <button class="select-button" onclick="document.getElementById('fileInput').click()">בחר קובץ</button>
+            <input type="file" id="fileInput" class="file-input" accept="audio/*,video/*">
+        </div>
+
+        <div class="file-info" id="fileInfo">
+            <div class="file-name" id="fileName"></div>
+            <div class="file-size" id="fileSize"></div>
+        </div>
+
+        <div class="audio-preview" id="audioPreview">
+            <div class="audio-controls">
+                <audio controls class="audio-player" id="audioPlayer"></audio>
+                <button class="process-button" id="processButton">עבד אודיו</button>
+            </div>
+            <div class="canvas-container">
+                <canvas class="waveform-canvas" id="waveformCanvas" width="600" height="100"></canvas>
+            </div>
+        </div>
+
+        <div class="options">
+            <div class="option-group">
+                <label class="option-label">🔧 הגדרות עיבוד אודיו</label>
+                
+                <div class="option-row">
+                    <span>הפעל מסנן רעשים</span>
+                    <div class="toggle active" id="noiseReductionToggle"></div>
+                </div>
+                
+                <div class="slider-container">
+                    <span>רמת מסנן רעשים:</span>
+                    <input type="range" class="slider" id="noiseReductionLevel" min="0" max="100" value="30">
+                    <span class="slider-value" id="noiseReductionValue">30%</span>
+                </div>
+                
+                <div class="option-row">
+                    <span>נרמול עוצמת קול</span>
+                    <div class="toggle active" id="normalizeToggle"></div>
+                </div>
+                
+                <div class="slider-container">
+                    <span>עוצמת קול יעד:</span>
+                    <input type="range" class="slider" id="volumeLevel" min="50" max="150" value="100">
+                    <span class="slider-value" id="volumeValue">100%</span>
+                </div>
+            </div>
+
+            <div class="option-group">
+                <label class="option-label">📝 הגדרות תמלול</label>
+                
+                <div class="option-row">
+                    <span>זיהוי רמקולים</span>
+                    <div class="toggle" id="speakerToggle"></div>
+                </div>
+                
+                <div class="option-row">
+                    <span>חותמות זמן</span>
+                    <div class="toggle active" id="timestampToggle"></div>
+                </div>
+                
+                <div class="option-row">
+                    <span>החסר קווי זמן</span>
+                    <input type="checkbox" class="checkbox" id="saveTimeCheckbox">
+                </div>
+            </div>
+        </div>
+
+        <button class="transcribe-button" id="transcribeButton" disabled>התחל תמלול</button>
+
+        <div class="progress-bar" id="progressBar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+
+        <div class="loading-spinner" id="loadingSpinner"></div>
+        <div class="status" id="status"></div>
+
+        <div class="result-area" id="resultArea">
+            <div class="result-header">
+                <div class="result-title">תוצאת התמלול</div>
+                <button class="download-button" id="downloadButton">הורד כ-TXT</button>
+            </div>
+            <div class="transcript-text" id="transcriptText" contenteditable="true"></div>
+        </div>
+    </div>
+
+    <script>
+        let selectedFile = null;
+        let processedFile = null;
+        let transcriptResult = '';
+        let audioContext = null;
+
+        // Elements
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const audioPreview = document.getElementById('audioPreview');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const processButton = document.getElementById('processButton');
+        const waveformCanvas = document.getElementById('waveformCanvas');
+        const transcribeButton = document.getElementById('transcribeButton');
+        const progressBar = document.getElementById('progressBar');
+        const progressFill = document.getElementById('progressFill');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const status = document.getElementById('status');
+        const resultArea = document.getElementById('resultArea');
+        const transcriptText = document.getElementById('transcriptText');
+        const downloadButton = document.getElementById('downloadButton');
+
+        // Initialize audio context
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        // Toggle functionality
+        document.querySelectorAll('.toggle').forEach(toggle => {
+            toggle.addEventListener('click', () => {
+                toggle.classList.toggle('active');
+            });
+        });
+
+        // Slider value updates
+        document.getElementById('noiseReductionLevel').addEventListener('input', (e) => {
+            document.getElementById('noiseReductionValue').textContent = e.target.value + '%';
+        });
+
+        document.getElementById('volumeLevel').addEventListener('input', (e) => {
+            document.getElementById('volumeValue').textContent = e.target.value + '%';
+        });
+
+        // File upload handling
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelect(e.target.files[0]);
+            }
+        });
+
+        function handleFileSelect(file) {
+            selectedFile = file;
+            processedFile = null;
+            fileName.textContent = file.name;
+            fileSize.textContent = formatFileSize(file.size);
+            fileInfo.style.display = 'block';
+            audioPreview.style.display = 'block';
+            resultArea.style.display = 'none';
+            
+            // Load audio for preview
+            const url = URL.createObjectURL(file);
+            audioPlayer.src = url;
+            
+            // Draw waveform
+            drawWaveform(file);
+            
+            // Enable transcription only if API key exists
+            checkTranscribeButton();
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function checkTranscribeButton() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const hasFile = selectedFile || processedFile;
+            transcribeButton.disabled = !apiKey || !hasFile;
+        }
+
+        document.getElementById('apiKey').addEventListener('input', checkTranscribeButton);
+
+        // Audio processing
+        processButton.addEventListener('click', async () => {
+            if (!selectedFile) return;
+            
+            processButton.disabled = true;
+            processButton.textContent = 'מעבד...';
+            
+            try {
+                initAudioContext();
+                const processedAudio = await processAudio(selectedFile);
+                processedFile = processedAudio;
+                
+                // Update audio player with processed audio
+                const url = URL.createObjectURL(processedFile);
+                audioPlayer.src = url;
+                
+                processButton.textContent = 'עובד ✓';
+                processButton.style.background = 'linear-gradient(135deg, #28a745, #20c997)';
+                
+                drawWaveform(processedFile);
+                checkTranscribeButton();
+                
+            } catch (error) {
+                console.error('Audio processing error:', error);
+                processButton.textContent = 'שגיאה בעיבוד';
+                processButton.style.background = 'linear-gradient(135deg, #dc3545, #c82333)';
+            }
+            
+            setTimeout(() => {
+                processButton.disabled = false;
+                if (processButton.textContent !== 'עובד ✓') {
+                    processButton.textContent = 'עבד אודיו';
+                    processButton.style.background = '';
+                }
+            }, 3000);
+        });
+
+        async function processAudio(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            
+            // Create offline context for processing
+            const offlineContext = new OfflineAudioContext(
+                audioBuffer.numberOfChannels,
+                audioBuffer.length,
+                audioBuffer.sampleRate
+            );
+            
+            // Create source
+            const source = offlineContext.createBufferSource();
+            source.buffer = audioBuffer;
+            
+            let currentNode = source;
+            
+            // Apply noise reduction
+            if (document.getElementById('noiseReductionToggle').classList.contains('active')) {
+                const noiseReduction = await createNoiseReductionFilter(offlineContext, audioBuffer);
+                currentNode.connect(noiseReduction);
+                currentNode = noiseReduction;
+            }
+            
+            // Apply normalization
+            if (document.getElementById('normalizeToggle').classList.contains('active')) {
+                const compressor = offlineContext.createDynamicsCompressor();
+                compressor.threshold.value = -24;
+                compressor.knee.value = 30;
+                compressor.ratio.value = 12;
+                compressor.attack.value = 0.003;
+                compressor.release.value = 0.25;
+                
+                currentNode.connect(compressor);
+                currentNode = compressor;
+            }
+            
+            // Apply volume adjustment
+            const volumeLevel = document.getElementById('volumeLevel').value / 100;
+            if (volumeLevel !== 1) {
+                const gainNode = offlineContext.createGain();
+                gainNode.gain.value = volumeLevel;
+                currentNode.connect(gainNode);
+                currentNode = gainNode;
+            }
+            
+            // Connect to output
+            currentNode.connect(offlineContext.destination);
+            
+            // Render
+            source.start();
+            const processedBuffer = await offlineContext.startRendering();
+            
+            // Convert back to file
+            return bufferToWaveFile(processedBuffer);
+        }
+
+        async function createNoiseReductionFilter(context, audioBuffer) {
+            // Simple high-pass filter for noise reduction
+            const filter = context.createBiquadFilter();
+            filter.type = 'highpass';
+            
+            const noiseLevel = document.getElementById('noiseReductionLevel').value;
+            filter.frequency.value = Math.min(200 + (noiseLevel * 3), 800);
+            filter.Q.value = 1;
+            
+            return filter;
+        }
+
+        function bufferToWaveFile(audioBuffer) {
+            const numberOfChannels = audioBuffer.numberOfChannels;
+            const length = audioBuffer.length * numberOfChannels * 2 + 44;
+            const buffer = new ArrayBuffer(length);
+            const view = new DataView(buffer);
+            const channels = [];
+            let offset = 0;
+            let pos = 0;
+
+            // Write WAV header
+            const setUint16 = (data) => {
+                view.setUint16(pos, data, true);
+                pos += 2;
+            };
+            const setUint32 = (data) => {
+                view.setUint32(pos, data, true);
+                pos += 4;
+            };
+
+            setUint32(0x46464952); // "RIFF"
+            setUint32(length - 8); // file length - 8
+            setUint32(0x45564157); // "WAVE"
+            setUint32(0x20746d66); // "fmt " chunk
+            setUint32(16); // length = 16
+            setUint16(1); // PCM (uncompressed)
+            setUint16(numberOfChannels);
+            setUint32(audioBuffer.sampleRate);
+            setUint32(audioBuffer.sampleRate * 2 * numberOfChannels); // avg. bytes/sec
+            setUint16(numberOfChannels * 2); // block-align
+            setUint16(16); // 16-bit
+            setUint32(0x61746164); // "data" - chunk
+            setUint32(length - pos - 4); // chunk length
+
+            // Write data
+            for (let i = 0; i < numberOfChannels; i++) {
+                channels.push(audioBuffer.getChannelData(i));
+            }
+
+            while (pos < length) {
+                for (let i = 0; i < numberOfChannels; i++) {
+                    let sample = Math.max(-1, Math.min(1, channels[i][offset]));
+                    sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+                    view.setInt16(pos, sample, true);
+                    pos += 2;
+                }
+                offset++;
+            }
+
+            return new Blob([buffer], { type: 'audio/wav' });
+        }
+
+        function drawWaveform(file) {
+            const canvas = waveformCanvas;
+            const ctx = canvas.getContext('2d');
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw loading state
+            ctx.fillStyle = '#667eea';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('טוען צורת גל...', canvas.width / 2, canvas.height / 2);
+            
+            // Process audio for waveform
+            file.arrayBuffer().then(arrayBuffer => {
+                if (audioContext) {
+                    return audioContext.decodeAudioData(arrayBuffer);
+                } else {
+                    // Fallback: draw simple waveform representation
+                    drawSimpleWaveform(ctx, canvas);
+                    return Promise.reject('No audio context');
+                }
+            }).then(audioBuffer => {
+                drawAudioWaveform(ctx, canvas, audioBuffer);
+            }).catch(error => {
+                console.warn('Could not draw waveform:', error);
+                drawSimpleWaveform(ctx, canvas);
+            });
+        }
+
+        function drawSimpleWaveform(ctx, canvas) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            
+            const centerY = canvas.height / 2;
+            for (let x = 0; x < canvas.width; x += 2) {
+                const amplitude = Math.sin(x * 0.02) * Math.random() * 20;
+                ctx.lineTo(x, centerY + amplitude);
+            }
+            ctx.stroke();
+        }
+
+        function drawAudioWaveform(ctx, canvas, audioBuffer) {
+            const data = audioBuffer.getChannelData(0);
+            const step = Math.ceil(data.length / canvas.width);
+            const amp = canvas.height / 2;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            
+            for (let i = 0; i < canvas.width; i++) {
+                let min = 1.0;
+                let max = -1.0;
+                
+                for (let j = 0; j < step; j++) {
+                    const datum = data[(i * step) + j];
+                    if (datum < min) min = datum;
+                    if (datum > max) max = datum;
+                }
+                
+                ctx.moveTo(i, (1 + min) * amp);
+                ctx.lineTo(i, (1 + max) * amp);
+            }
+            
+            ctx.stroke();
+        }
+
+        // Transcription functionality
+        transcribeButton.addEventListener('click', async () => {
+            const fileToTranscribe = processedFile || selectedFile;
+            const apiKey = document.getElementById('apiKey').value.trim();
+            
+            if (!fileToTranscribe || !apiKey) {
+                alert('אנא בחר קובץ והזן מפתח API');
+                return;
+            }
+
+            // Show loading state
+            transcribeButton.disabled = true;
+            progressBar.style.display = 'block';
+            loadingSpinner.style.display = 'block';
+            status.style.display = 'block';
+            status.className = 'status processing';
+            status.textContent = 'מתחבר לשירות התמלול...';
+            resultArea.style.display = 'none';
+
+            try {
+                await performTranscription(fileToTranscribe, apiKey);
+            } catch (error) {
+                console.error('Transcription error:', error);
+                status.className = 'status error';
+                status.textContent = 'שגיאה: ' + error.message;
+                
+                // Show detailed error information
+                const errorDetails = document.createElement('div');
+                errorDetails.className = 'error-details';
+                errorDetails.innerHTML = `
+                    <strong>פרטי שגיאה טכניים:</strong><br>
+                    קובץ: ${fileToTranscribe.name || 'קובץ מעובד'}<br>
+                    גודל: ${(fileToTranscribe.size / 1024 / 1024).toFixed(2)} MB<br>
+                    שגיאה: ${error.message}<br><br>
+                    <strong>פתרונות אפשריים:</strong><br>
+                    • בדוק שמפתח ה-API נכון ופעיל<br>
+                    • ודא שיש קרדיט בחשבון OpenAI<br>
+                    • נסה קובץ קטן יותר (מתחת ל-25MB)<br>
+                    • נסה פורמט אחר (MP3, WAV)<br>
+                    • ודא שהקובץ מכיל דיבור ברור<br>
+                    • נסה לרענן את הדף ולנסות שוב<br>
+                `;
+                
+                // Add to container if not already there
+                const existingError = document.querySelector('.error-details');
+                if (existingError) {
+                    existingError.remove();
+                }
+                document.querySelector('.container').appendChild(errorDetails);
+                setTimeout(() => errorDetails.remove(), 20000);
+                
+            } finally {
+                transcribeButton.disabled = false;
+                loadingSpinner.style.display = 'none';
+                progressBar.style.display = 'none';
+            }
+        });
+
+        async function performTranscription(file, apiKey) {
+            try {
+                status.textContent = 'מעבד קובץ אודיו...';
+                
+                // Check file size (OpenAI has 25MB limit)
+                if (file.size > 25 * 1024 * 1024) {
+                    throw new Error('קובץ גדול מדי. הגודל המקסימלי הוא 25MB');
+                }
+
+                // Convert file to proper format if needed
+                let fileToSend = file;
+                if (file.type === 'audio/wav' || !file.name) {
+                    // Create proper filename for processed files
+                    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+                    fileToSend = new File([file], `processed_audio_${timestamp}.wav`, { 
+                        type: 'audio/wav' 
+                    });
+                }
+
+                const formData = new FormData();
+                formData.append('file', fileToSend);
+                formData.append('model', 'whisper-1');
+                formData.append('language', 'he');
+                formData.append('response_format', 'json');
+
+                console.log('Sending to OpenAI:', fileToSend.name, fileToSend.type, fileToSend.size);
+
+                status.textContent = 'שולח לשירות OpenAI Whisper...';
+
+                // Use XMLHttpRequest for better progress tracking and CORS handling
+                const response = await new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    
+                    xhr.open('POST', 'https://api.openai.com/v1/audio/transcriptions');
+                    xhr.setRequestHeader('Authorization', `Bearer ${apiKey}`);
+                    
+                    xhr.onload = function() {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            try {
+                                const result = JSON.parse(xhr.responseText);
+                                resolve(result);
+                            } catch (e) {
+                                reject(new Error('תגובה לא תקינה מהשרת'));
+                            }
+                        } else {
+                            try {
+                                const errorData = JSON.parse(xhr.responseText);
+                                let errorMessage = errorData.error?.message || errorData.message || `HTTP ${xhr.status}`;
+                                
+                                // Handle specific errors in Hebrew
+                                if (errorMessage.includes('rate limit')) {
+                                    errorMessage = 'חרגת ממגבלת הקריאות. המתן מספר דקות ונסה שוב';
+                                } else if (errorMessage.includes('quota') || errorMessage.includes('credit')) {
+                                    errorMessage = 'חרגת ממכסת הקרדיט או אין אשראי בחשבון OpenAI';
+                                } else if (errorMessage.includes('invalid api key') || errorMessage.includes('authentication')) {
+                                    errorMessage = 'מפתח API לא תקין. בדוק את המפתח בפלטפורמת OpenAI';
+                                } else if (errorMessage.includes('audio file is invalid') || errorMessage.includes('unsupported')) {
+                                    errorMessage = 'קובץ האודיו לא נתמך או פגום. נסה להמיר ל-MP3 או WAV';
+                                } else if (errorMessage.includes('file size')) {
+                                    errorMessage = 'הקובץ גדול מדי. הגודל המקסימלי הוא 25MB';
+                                }
+                                
+                                reject(new Error(errorMessage));
+                            } catch (e) {
+                                reject(new Error(`שגיאת שרת: ${xhr.status} ${xhr.statusText}`));
+                            }
+                        }
+                    };
+                    
+                    xhr.onerror = function() {
+                        reject(new Error('שגיאת רשת או חסימת CORS. נסה דפדפן אחר או השתמש בשרת proxy'));
+                    };
+                    
+                    xhr.ontimeout = function() {
+                        reject(new Error('תם זמן ההמתנה. הקובץ גדול מדי או בעיה ברשת'));
+                    };
+                    
+                    xhr.timeout = 120000; // 2 minutes timeout
+                    
+                    // Progress tracking
+                    xhr.upload.addEventListener('progress', (e) => {
+                        if (e.lengthComputable) {
+                            const percentComplete = (e.loaded / e.total) * 50;
+                            progressFill.style.width = percentComplete + '%';
+                            status.textContent = `מעלה קובץ... ${Math.round(percentComplete)}%`;
+                        }
+                    });
+                    
+                    xhr.addEventListener('progress', (e) => {
+                        if (e.lengthComputable) {
+                            const percentComplete = 50 + (e.loaded / e.total) * 50;
+                            progressFill.style.width = percentComplete + '%';
+                            status.textContent = `מקבל תמלול... ${Math.round(percentComplete)}%`;
+                        } else {
+                            status.textContent = 'מעבד תמלול...';
+                        }
+                    });
+                    
+                    xhr.send(formData);
+                });
+
+                console.log('API Response:', response);
+
+                if (!response.text || response.text.trim() === '') {
+                    throw new Error('לא זוהה טקסט בקובץ האודיו. ייתכן שהקול לא ברור או שהקובץ ריק');
+                }
+
+                transcriptResult = response.text.trim();
+                progressFill.style.width = '100%';
+                displayResults();
+
+            } catch (error) {
+                console.error('Transcription error:', error);
+                throw error;
+            }
+        }
+
+        function displayResults() {
+            let finalResult = transcriptResult;
+
+            // Add timestamps if enabled
+            if (document.getElementById('timestampToggle').classList.contains('active')) {
+                const sentences = finalResult.split(/[.!?]+/).filter(s => s.trim().length > 0);
+                finalResult = sentences.map((sentence, index) => {
+                    const minutes = Math.floor(index * 10 / 60);
+                    const seconds = (index * 10) % 60;
+                    const timestamp = `[${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}]`;
+                    return `${timestamp} ${sentence.trim()}`;
+                }).join('. ') + '.';
+            }
+
+            // Add speaker identification if enabled
+            if (document.getElementById('speakerToggle').classList.contains('active')) {
+                finalResult = 'רמקול 1: ' + finalResult;
+            }
+
+            transcriptText.textContent = finalResult;
+            resultArea.style.display = 'block';
+            
+            status.className = 'status success';
+            status.textContent = 'התמלול הושלם בהצלחה! ✅';
+            
+            // Scroll to results
+            resultArea.scrollIntoView({ behavior: 'smooth' });
+            
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 5000);
+        }
+
+        // Download functionality
+        downloadButton.addEventListener('click', () => {
+            const text = transcriptText.textContent;
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+            const originalName = selectedFile ? selectedFile.name.replace(/\.[^/.]+$/, "") : "transcript";
+            a.download = `${originalName}_transcript_${timestamp}.txt`;
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            // Try to initialize audio context on first user interaction
+            document.body.addEventListener('click', () => {
+                if (!audioContext) {
+                    try {
+                        initAudioContext();
+                    } catch (error) {
+                        console.warn('Could not initialize audio context:', error);
+                    }
+                }
+            }, { once: true });
+            
+            console.log('Hebrew Transcription App loaded successfully! 🚀');
+        });
+    </script>
+</body>
+</html>
