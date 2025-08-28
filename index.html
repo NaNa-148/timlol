@@ -228,8 +228,21 @@
             transition: opacity 0.2s;
         }
 
-        .slider:hover {
-            opacity: 1;
+        .slider:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .slider:disabled:hover {
+            opacity: 0.4;
+        }
+
+        .slider-container.disabled {
+            opacity: 0.6;
+        }
+
+        .slider-container.disabled span {
+            color: #999;
         }
 
         .slider::-webkit-slider-thumb {
@@ -583,7 +596,7 @@
                 
                 <div class="slider-container">
                     <span>רמת מסנן רעשים:</span>
-                    <input type="range" class="slider" id="noiseReductionLevel" min="0" max="100" value="30">
+                    <input type="range" class="slider" id="noiseReductionLevel" min="0" max="100" value="30" disabled>
                     <span class="slider-value" id="noiseReductionValue">30%</span>
                 </div>
                 
@@ -594,7 +607,7 @@
                 
                 <div class="slider-container">
                     <span>עוצמת קול יעד:</span>
-                    <input type="range" class="slider" id="volumeLevel" min="50" max="150" value="100">
+                    <input type="range" class="slider" id="volumeLevel" min="50" max="150" value="100" disabled>
                     <span class="slider-value" id="volumeValue">100%</span>
                 </div>
 
@@ -605,18 +618,13 @@
                 <label class="option-label">📝 הגדרות תמלול</label>
                 
                 <div class="option-row">
-                    <span>זיהוי רמקולים</span>
+                    <span>זיהוי משתתפים</span>
                     <div class="toggle" id="speakerToggle"></div>
                 </div>
                 
                 <div class="option-row">
                     <span>חותמות זמן</span>
                     <div class="toggle active" id="timestampToggle"></div>
-                </div>
-                
-                <div class="option-row">
-                    <span>החסר קווי זמן</span>
-                    <input type="checkbox" class="checkbox" id="saveTimeCheckbox">
                 </div>
             </div>
         </div>
@@ -700,12 +708,66 @@
             }
         }
 
-        // Toggle functionality
+        // Toggle functionality with slider control
         document.querySelectorAll('.toggle').forEach(toggle => {
             toggle.addEventListener('click', () => {
                 toggle.classList.toggle('active');
+                
+                // Handle slider enabling/disabling
+                if (toggle.id === 'noiseReductionToggle') {
+                    const slider = document.getElementById('noiseReductionLevel');
+                    const container = slider.closest('.slider-container');
+                    if (toggle.classList.contains('active')) {
+                        slider.disabled = false;
+                        container.classList.remove('disabled');
+                    } else {
+                        slider.disabled = true;
+                        container.classList.add('disabled');
+                    }
+                }
+                
+                if (toggle.id === 'normalizeToggle') {
+                    const slider = document.getElementById('volumeLevel');
+                    const container = slider.closest('.slider-container');
+                    if (toggle.classList.contains('active')) {
+                        slider.disabled = false;
+                        container.classList.remove('disabled');
+                    } else {
+                        slider.disabled = true;
+                        container.classList.add('disabled');
+                    }
+                }
             });
         });
+
+        // Initialize slider states based on toggle states
+        function initializeSliderStates() {
+            // Noise reduction slider
+            const noiseToggle = document.getElementById('noiseReductionToggle');
+            const noiseSlider = document.getElementById('noiseReductionLevel');
+            const noiseContainer = noiseSlider.closest('.slider-container');
+            
+            if (noiseToggle.classList.contains('active')) {
+                noiseSlider.disabled = false;
+                noiseContainer.classList.remove('disabled');
+            } else {
+                noiseSlider.disabled = true;
+                noiseContainer.classList.add('disabled');
+            }
+            
+            // Volume slider
+            const volumeToggle = document.getElementById('normalizeToggle');
+            const volumeSlider = document.getElementById('volumeLevel');
+            const volumeContainer = volumeSlider.closest('.slider-container');
+            
+            if (volumeToggle.classList.contains('active')) {
+                volumeSlider.disabled = false;
+                volumeContainer.classList.remove('disabled');
+            } else {
+                volumeSlider.disabled = true;
+                volumeContainer.classList.add('disabled');
+            }
+        }
 
         // Slider value updates
         document.getElementById('noiseReductionLevel').addEventListener('input', (e) => {
@@ -1252,7 +1314,7 @@
 
             // Add speaker identification if enabled
             if (document.getElementById('speakerToggle').classList.contains('active')) {
-                finalResult = 'רמקול 1: ' + finalResult;
+                finalResult = 'משתתף 1: ' + finalResult;
             }
 
             transcriptText.textContent = finalResult;
@@ -1341,15 +1403,19 @@
 
         // Download functionality
         downloadButton.addEventListener('click', () => {
-            const text = transcriptText.textContent;
-            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            // Determine which text to download
+            const hasImprovedText = improvedText.style.display !== 'none' && improvedResult;
+            const textToDownload = hasImprovedText ? improvedResult : transcriptText.textContent;
+            const filenameSuffix = hasImprovedText ? '_improved' : '';
+            
+            const blob = new Blob([textToDownload], { type: 'text/plain;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
             
             const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
             const originalName = selectedFile ? selectedFile.name.replace(/\.[^/.]+$/, "") : "transcript";
-            a.download = `${originalName}_transcript_${timestamp}.txt`;
+            a.download = `${originalName}_transcript${filenameSuffix}_${timestamp}.txt`;
             
             document.body.appendChild(a);
             a.click();
@@ -1359,6 +1425,12 @@
 
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', () => {
+            // Load saved API key
+            loadApiKey();
+            
+            // Initialize slider states
+            initializeSliderStates();
+            
             // Try to initialize audio context on first user interaction
             document.body.addEventListener('click', () => {
                 if (!audioContext) {
