@@ -732,7 +732,16 @@
             processButton.textContent = 'מעבד...';
             
             try {
-                initAudioContext();
+                // Initialize audio context if needed
+                if (!audioContext) {
+                    initAudioContext();
+                }
+                
+                // Check if audio context is ready
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+                
                 const processedAudio = await processAudio(selectedFile);
                 processedFile = processedAudio;
                 
@@ -743,18 +752,27 @@
                 processButton.textContent = 'עובד ✓';
                 processButton.style.background = 'linear-gradient(135deg, #28a745, #20c997)';
                 
+                // Update file info to show processed file
+                fileName.textContent = selectedFile.name + ' (מעובד)';
+                fileSize.textContent = formatFileSize(processedFile.size);
+                
                 drawWaveform(processedFile);
                 checkTranscribeButton();
+                
+                console.log('Audio processing completed successfully');
                 
             } catch (error) {
                 console.error('Audio processing error:', error);
                 processButton.textContent = 'שגיאה בעיבוד';
                 processButton.style.background = 'linear-gradient(135deg, #dc3545, #c82333)';
+                
+                // Show error message
+                alert('שגיאה בעיבוד האודיו: ' + error.message + '\n\nנסה קובץ אחר או התמלל בלי עיבוד.');
             }
             
             setTimeout(() => {
                 processButton.disabled = false;
-                if (processButton.textContent !== 'עובד ✓') {
+                if (processButton.textContent === 'שגיאה בעיבוד') {
                     processButton.textContent = 'עבד אודיו';
                     processButton.style.background = '';
                 }
@@ -832,45 +850,55 @@
 
         function bufferToWaveFile(audioBuffer) {
             const numberOfChannels = audioBuffer.numberOfChannels;
+            const sampleRate = audioBuffer.sampleRate;
             const length = audioBuffer.length * numberOfChannels * 2 + 44;
             const buffer = new ArrayBuffer(length);
             const view = new DataView(buffer);
-            const channels = [];
-            let offset = 0;
             let pos = 0;
 
             // Write WAV header
-            const setUint16 = (data) => {
-                view.setUint16(pos, data, true);
-                pos += 2;
+            const writeString = (str) => {
+                for (let i = 0; i < str.length; i++) {
+                    view.setUint8(pos + i, str.charCodeAt(i));
+                }
+                pos += str.length;
             };
-            const setUint32 = (data) => {
+            
+            const writeUint32 = (data) => {
                 view.setUint32(pos, data, true);
                 pos += 4;
             };
+            
+            const writeUint16 = (data) => {
+                view.setUint16(pos, data, true);
+                pos += 2;
+            };
 
-            setUint32(0x46464952); // "RIFF"
-            setUint32(length - 8); // file length - 8
-            setUint32(0x45564157); // "WAVE"
-            setUint32(0x20746d66); // "fmt " chunk
-            setUint32(16); // length = 16
-            setUint16(1); // PCM (uncompressed)
-            setUint16(numberOfChannels);
-            setUint32(audioBuffer.sampleRate);
-            setUint32(audioBuffer.sampleRate * 2 * numberOfChannels); // avg. bytes/sec
-            setUint16(numberOfChannels * 2); // block-align
-            setUint16(16); // 16-bit
-            setUint32(0x61746164); // "data" - chunk
-            setUint32(length - pos - 4); // chunk length
+            // WAV header
+            writeString('RIFF');
+            writeUint32(length - 8);
+            writeString('WAVE');
+            writeString('fmt ');
+            writeUint32(16); // PCM format
+            writeUint16(1);  // PCM
+            writeUint16(numberOfChannels);
+            writeUint32(sampleRate);
+            writeUint32(sampleRate * numberOfChannels * 2); // byte rate
+            writeUint16(numberOfChannels * 2); // block align
+            writeUint16(16); // bits per sample
+            writeString('data');
+            writeUint32(length - pos - 4);
 
-            // Write data
+            // Write audio data
+            const channels = [];
             for (let i = 0; i < numberOfChannels; i++) {
                 channels.push(audioBuffer.getChannelData(i));
             }
 
+            let offset = 0;
             while (pos < length) {
                 for (let i = 0; i < numberOfChannels; i++) {
-                    let sample = Math.max(-1, Math.min(1, channels[i][offset]));
+                    let sample = Math.max(-1, Math.min(1, channels[i][offset] || 0));
                     sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
                     view.setInt16(pos, sample, true);
                     pos += 2;
@@ -1021,11 +1049,21 @@
 
                 // Convert file to proper format if needed
                 let fileToSend = file;
-                if (file.type === 'audio/wav' || !file.name) {
-                    // Create proper filename for processed files
+                
+                // If it's a processed file (Blob without name), convert to File
+                if (file instanceof Blob && !file.name) {
                     const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-                    fileToSend = new File([file], `processed_audio_${timestamp}.wav`, { 
+                    const originalName = selectedFile ? selectedFile.name.replace(/\.[^/.]+$/, "") : "processed";
+                    fileToSend = new File([file], `${originalName}_processed_${timestamp}.wav`, { 
                         type: 'audio/wav' 
+                    });
+                }
+                
+                // Ensure we have a valid file with name
+                if (!fileToSend.name) {
+                    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+                    fileToSend = new File([fileToSend], `audio_${timestamp}.wav`, { 
+                        type: fileToSend.type || 'audio/wav' 
                     });
                 }
 
