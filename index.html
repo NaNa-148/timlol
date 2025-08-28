@@ -567,7 +567,7 @@
             <div class="upload-icon">🎤</div>
             <div class="upload-text">גרור קובץ אודיו לכאן או לחץ לבחירה</div>
             <div class="upload-subtext">תומך ב-MP3, WAV, M4A, MP4, WEBM, FLAC (עד 25MB)</div>
-            <button class="select-button" onclick="document.getElementById('fileInput').click()">בחר קובץ</button>
+            <button class="select-button" onclick="document.getElementById('fileInput').click(); console.log('Select button clicked');">בחר קובץ</button>
             <input type="file" id="fileInput" class="file-input" accept="audio/*,video/*">
         </div>
 
@@ -803,6 +803,7 @@
 
         // File upload handling
         uploadArea.addEventListener('click', () => {
+            console.log('Upload area clicked');
             fileInput.click();
         });
 
@@ -819,49 +820,70 @@
             e.preventDefault();
             uploadArea.classList.remove('dragover');
             const files = e.dataTransfer.files;
+            console.log('Files dropped:', files.length);
             if (files.length > 0) {
                 handleFileSelect(files[0]);
             }
         });
 
         fileInput.addEventListener('change', (e) => {
+            console.log('File input changed, files:', e.target.files.length);
             if (e.target.files.length > 0) {
+                console.log('Selected file:', e.target.files[0].name);
                 handleFileSelect(e.target.files[0]);
                 // Clear the input to allow selecting the same file again if needed
-                e.target.value = '';
+                setTimeout(() => {
+                    e.target.value = '';
+                }, 100);
             }
         });
 
         function handleFileSelect(file) {
+            console.log('handleFileSelect called with:', file);
+            
+            if (!file) {
+                console.error('No file provided to handleFileSelect');
+                return;
+            }
+            
             selectedFile = file;
             processedFile = null;
             
-            console.log('File selected:', file.name, 'Size:', (file.size / 1024 / 1024).toFixed(2) + 'MB');
+            console.log('File selected:', file.name, 'Size:', (file.size / 1024 / 1024).toFixed(2) + 'MB', 'Type:', file.type);
             
-            fileName.textContent = file.name;
-            fileSize.textContent = formatFileSize(file.size);
-            fileInfo.style.display = 'block';
-            audioPreview.style.display = 'block';
-            resultArea.style.display = 'none';
-            
-            // Reset process button
-            processButton.textContent = 'עבד אודיו';
-            processButton.style.background = '';
-            
-            // Load audio for preview
-            const url = URL.createObjectURL(file);
-            audioPlayer.src = url;
-            
-            // Draw waveform
-            drawWaveform(file);
-            
-            // Enable transcription only if API key exists
-            checkTranscribeButton();
-            
-            // Check file size and warn if too large
-            if (file.size > 25 * 1024 * 1024) {
-                const sizeMB = (file.size / 1024 / 1024).toFixed(1);
-                alert(`⚠️ הקובץ גדול (${sizeMB}MB) מהמגבלה של OpenAI (25MB).\n\nהמערכת תדחוס אותו אוטומטית בעיבוד האודיו.`);
+            try {
+                fileName.textContent = file.name;
+                fileSize.textContent = formatFileSize(file.size);
+                fileInfo.style.display = 'block';
+                audioPreview.style.display = 'block';
+                resultArea.style.display = 'none';
+                
+                // Reset process button
+                processButton.textContent = 'עבד אודיו';
+                processButton.style.background = '';
+                
+                // Load audio for preview
+                const url = URL.createObjectURL(file);
+                audioPlayer.src = url;
+                console.log('Audio URL created:', url);
+                
+                // Draw waveform
+                drawWaveform(file);
+                
+                // Enable transcription only if API key exists
+                checkTranscribeButton();
+                
+                // Check file size and warn if too large
+                if (file.size > 25 * 1024 * 1024) {
+                    const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+                    alert(`⚠️ הקובץ גדול (${sizeMB}MB) מהמגבלה של OpenAI (25MB).\n\nהמערכת תדחוס אותו אוטומטית בעיבוד האודיו.`);
+                }
+                
+                console.log('File selection completed successfully');
+                
+            } catch (error) {
+                console.error('Error in handleFileSelect:', error);
+                alert('שגיאה בטעינת הקובץ: ' + error.message);
             }
         }
 
