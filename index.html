@@ -339,6 +339,17 @@
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(23, 162, 184, 0.3);
         }
+        
+        .copy-button {
+            background: #f0f0f0;
+            color: #333;
+            padding: 10px 15px;
+            font-size: 0.9rem;
+        }
+        
+        .copy-button:hover {
+            background: #e0e0e0;
+        }
 
         .transcribe-button {
             width: 100%;
@@ -366,6 +377,10 @@
             background: linear-gradient(135deg, #28a745, #20c997);
             color: white;
             padding: 10px 20px;
+        }
+        
+        .download-button.vtt {
+            background: linear-gradient(135deg, #fd7e14, #ffc107);
         }
 
         .download-button:hover {
@@ -626,14 +641,19 @@
             <div class="option-group">
                 <label class="option-label">📝 הגדרות תמלול</label>
                 
+                 <div class="option-row">
+                    <span>חותמות זמן</span>
+                    <div class="toggle" id="timestampToggle"></div>
+                </div>
+                
                 <div class="option-row">
                     <span>זיהוי משתתפים</span>
                     <div class="toggle" id="speakerToggle"></div>
                 </div>
                 
                 <div class="option-row">
-                    <span>חותמות זמן</span>
-                    <div class="toggle active" id="timestampToggle"></div>
+                    <span>הצג כפסקאות</span>
+                    <div class="toggle" id="paragraphToggle"></div>
                 </div>
             </div>
         </div>
@@ -651,15 +671,19 @@
             <div class="result-header">
                 <div class="result-title">תוצאת התמלול</div>
                 <div class="result-actions">
-                    <select id="improveModelSelect" class="api-input" style="width: auto; margin-bottom: 0;">
-                        <option value="gpt-4o" selected>GPT-4o</option>
-                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                    </select>
-                    <button class="button process-button" id="improveButton" style="display: none;">🔧 תיקון אוטומטי</button>
-                    <button class="button download-button" id="downloadButton">הורד כ-TXT</button>
+                    <button class="button copy-button" id="copyButton">העתק הכל</button>
+                    <button class="button download-button" id="downloadTxtButton">הורד כ-TXT</button>
+                    <button class="button download-button vtt" id="downloadVttButton">הורד כ-VTT</button>
                 </div>
             </div>
-            <div class="transcript-text" id="transcriptText" contenteditable="true"></div>
+             <div class="result-actions" style="margin-top: 15px; justify-content: flex-end;">
+                 <select id="improveModelSelect" class="api-input" style="width: auto; margin-bottom: 0;">
+                    <option value="gpt-4o" selected>GPT-4o</option>
+                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                </select>
+                <button class="button process-button" id="improveButton" style="display: none;">🔧 תיקון אוטומטי</button>
+            </div>
+            <div class="transcript-text" id="transcriptText" contenteditable="true" style="margin-top: 15px;"></div>
             <div class="transcript-text" id="improvedText" contenteditable="true" style="display: none; margin-top: 15px; border-right-color: #28a745;">
                 <div style="font-weight: bold; margin-bottom: 10px; color: #28a745;">✨ טקסט מתוקן:</div>
             </div>
@@ -672,7 +696,7 @@
         // Global state
         let selectedFile = null;
         let processedFile = null;
-        let transcriptResult = '';
+        let transcriptResult = null;
         let improvedResult = '';
         let audioContext = null;
         let progressInterval = null;
@@ -698,7 +722,9 @@
             improvedText: document.getElementById('improvedText'),
             improveButton: document.getElementById('improveButton'),
             improveModelSelect: document.getElementById('improveModelSelect'),
-            downloadButton: document.getElementById('downloadButton'),
+            downloadTxtButton: document.getElementById('downloadTxtButton'),
+            downloadVttButton: document.getElementById('downloadVttButton'),
+            copyButton: document.getElementById('copyButton'),
             languageSelect: document.getElementById('languageSelect'),
             resetButton: document.getElementById('resetButton'),
             apiKey: document.getElementById('apiKey'),
@@ -711,7 +737,8 @@
             volumeLevel: document.getElementById('volumeLevel'),
             volumeValue: document.getElementById('volumeValue'),
             speakerToggle: document.getElementById('speakerToggle'),
-            timestampToggle: document.getElementById('timestampToggle')
+            timestampToggle: document.getElementById('timestampToggle'),
+            paragraphToggle: document.getElementById('paragraphToggle'),
         };
 
         // --- LOCAL STORAGE ---
@@ -805,6 +832,12 @@
                 elements.progressBar.style.display = 'none';
                 elements.progressFill.style.width = `0%`;
             }, 500);
+        }
+        
+        function formatVttTime(seconds) {
+            const date = new Date(0);
+            date.setSeconds(seconds);
+            return date.toISOString().substr(11, 12);
         }
 
         // --- FILE HANDLING ---
@@ -1008,7 +1041,7 @@
             return new Blob([buffer], { type: 'audio/wav' });
         }
 
-        // --- OPENAI API ---
+        // --- OPENAI API & RESULTS ---
         async function performTranscription(file, apiKey) {
             showStatus('מעבד קובץ אודיו...');
             if (file.size > 25 * 1024 * 1024) throw new Error('קובץ גדול מדי. הגודל המקסימלי הוא 25MB');
@@ -1025,10 +1058,10 @@
             formData.append('model', 'whisper-1');
             const selectedLanguage = elements.languageSelect.value;
             if (selectedLanguage !== 'auto') formData.append('language', selectedLanguage);
-            formData.append('response_format', 'json');
+            formData.append('response_format', 'verbose_json'); // Changed to get segments
 
             showStatus('נשלח לתמלול...');
-            simulateProgress(5, 90, 45000); // Simulate progress over 45 seconds
+            simulateProgress(5, 90, 45000); 
             
             const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
                 method: 'POST',
@@ -1051,7 +1084,7 @@
                 throw new Error('לא זוהה טקסט בקובץ האודיו. ייתכן שהקול לא ברור או שהקובץ ריק');
             }
 
-            transcriptResult = result.text.trim();
+            transcriptResult = result; // Store the full verbose result
             displayResults();
         }
         
@@ -1094,20 +1127,27 @@
         }
 
         function displayResults() {
-            let finalResult = transcriptResult;
+            if (!transcriptResult || !transcriptResult.segments) return;
 
-            if (elements.timestampToggle.classList.contains('active')) {
-                const sentences = finalResult.split(/[.!?]+/).filter(s => s.trim().length > 0);
-                finalResult = sentences.map((sentence, index) => {
-                    const minutes = Math.floor(index * 10 / 60);
-                    const seconds = (index * 10) % 60;
-                    const timestamp = `[${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}]`;
-                    return `${timestamp} ${sentence.trim()}`;
-                }).join('. ') + '.';
-            }
+            const showTimestamps = elements.timestampToggle.classList.contains('active');
+            const showParagraphs = elements.paragraphToggle.classList.contains('active');
+            const showSpeakers = elements.speakerToggle.classList.contains('active');
+            
+            const separator = showParagraphs ? '\n\n' : ' ';
+            
+            let finalResult = transcriptResult.segments.map(segment => {
+                let line = segment.text.trim();
+                if (showTimestamps) {
+                    const time = formatVttTime(segment.start).substring(0, 8); // HH:MM:SS
+                    line = `[${time}] ${line}`;
+                }
+                return line;
+            }).join(separator);
 
-            if (elements.speakerToggle.classList.contains('active')) {
-                finalResult = 'משתתף 1: ' + finalResult;
+            if (showSpeakers && !showParagraphs) {
+                 finalResult = 'משתתף 1: ' + finalResult;
+            } else if (showSpeakers && showParagraphs) {
+                finalResult = finalResult.replace(/\[/g, 'משתתף 1: [');
             }
 
             elements.transcriptText.textContent = finalResult;
@@ -1121,12 +1161,24 @@
             setTimeout(hideStatus, 5000);
         }
 
+        function generateVTTContent() {
+            if (!transcriptResult || !transcriptResult.segments) return '';
+            let vttContent = "WEBVTT\n\n";
+            transcriptResult.segments.forEach(segment => {
+                const start = formatVttTime(segment.start);
+                const end = formatVttTime(segment.end);
+                vttContent += `${start} --> ${end}\n`;
+                vttContent += `${segment.text.trim()}\n\n`;
+            });
+            return vttContent;
+        }
+
         // --- APP RESET & INITIALIZATION ---
         function resetSettingsToDefault() {
             // Language
             elements.languageSelect.value = 'he';
             
-            // Audio processing toggles and sliders
+            // Audio processing
             elements.noiseReductionToggle.classList.add('active');
             elements.noiseReductionLevel.value = 30;
             elements.noiseReductionValue.textContent = '30%';
@@ -1139,11 +1191,12 @@
             elements.volumeLevel.disabled = false;
             elements.volumeSliderContainer.classList.remove('disabled');
             
-            // Transcription toggles
+            // Transcription
+            elements.timestampToggle.classList.remove('active'); // Default OFF
             elements.speakerToggle.classList.remove('active');
-            elements.timestampToggle.classList.add('active');
-
-            // Text improvement model
+            elements.paragraphToggle.classList.remove('active'); // Default OFF
+            
+            // Text improvement
             elements.improveModelSelect.value = 'gpt-4o';
         }
         
@@ -1151,7 +1204,7 @@
             if (confirm('האם אתה בטוח שברצונך לאפס את האפליקציה?\n\nכל הקבצים, התמלולים וההגדרות יחזרו למצב ברירת המחדל.')) {
                 selectedFile = null;
                 processedFile = null;
-                transcriptResult = '';
+                transcriptResult = null;
                 improvedResult = '';
                 
                 elements.fileInfo.style.display = 'none';
@@ -1280,25 +1333,39 @@
                     }
                 }, 3000);
             });
+            
+            const downloadHandler = (isVTT) => {
+                 const textToDownload = isVTT ? generateVTTContent() : (improvedResult || elements.transcriptText.textContent);
+                 const extension = isVTT ? '.vtt' : '.txt';
+                 const mimeType = isVTT ? 'text/vtt' : 'text/plain';
+                 
+                 const blob = new Blob([textToDownload], { type: `${mimeType};charset=utf-8` });
+                 const url = URL.createObjectURL(blob);
+                 const a = document.createElement('a');
+                 a.href = url;
+                
+                 const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+                 const originalName = selectedFile ? selectedFile.name.replace(/\.[^/.]+$/, "") : "transcript";
+                 a.download = `${originalName}_${timestamp}${extension}`;
+                
+                 document.body.appendChild(a);
+                 a.click();
+                 document.body.removeChild(a);
+                 URL.revokeObjectURL(url);
+            };
 
-            elements.downloadButton.addEventListener('click', () => {
-                const hasImprovedText = elements.improvedText.style.display !== 'none' && improvedResult;
-                const textToDownload = hasImprovedText ? improvedResult : elements.transcriptText.textContent;
-                const filenameSuffix = hasImprovedText ? '_improved' : '';
-                
-                const blob = new Blob([textToDownload], { type: 'text/plain;charset=utf-8' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                
-                const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-                const originalName = selectedFile ? selectedFile.name.replace(/\.[^/.]+$/, "") : "transcript";
-                a.download = `${originalName}_transcript${filenameSuffix}_${timestamp}.txt`;
-                
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+            elements.downloadTxtButton.addEventListener('click', () => downloadHandler(false));
+            elements.downloadVttButton.addEventListener('click', () => downloadHandler(true));
+            
+            elements.copyButton.addEventListener('click', () => {
+                const textToCopy = improvedResult || elements.transcriptText.textContent;
+                navigator.clipboard.writeText(textToCopy).then(() => {
+                    const originalText = elements.copyButton.textContent;
+                    elements.copyButton.textContent = 'הועתק!';
+                    setTimeout(() => {
+                        elements.copyButton.textContent = originalText;
+                    }, 2000);
+                }).catch(err => console.error('Failed to copy text: ', err));
             });
             
             // File input listeners
@@ -1325,11 +1392,13 @@
                         const isActive = toggle.classList.contains('active');
                         elements.noiseReductionLevel.disabled = !isActive;
                         elements.noiseSliderContainer.classList.toggle('disabled', !isActive);
-                    }
-                    if (toggle.id === 'normalizeToggle') {
+                    } else if (toggle.id === 'normalizeToggle') {
                         const isActive = toggle.classList.contains('active');
                         elements.volumeLevel.disabled = !isActive;
                         elements.volumeSliderContainer.classList.toggle('disabled', !isActive);
+                    } else if (transcriptResult) {
+                        // Re-display results if a toggle changes after transcription
+                        displayResults();
                     }
                 });
             });
