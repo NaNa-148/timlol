@@ -161,13 +161,8 @@
     </div>
 
     <script>
-        // Global state
-        let selectedFile = null;
-        let processedFile = null;
-        let transcriptResult = null;
-        let audioContext = null;
+        let selectedFile = null, processedFile = null, transcriptResult = null, audioContext = null;
 
-        // DOM Elements
         const elements = {
             serviceSelector: document.getElementById('serviceSelector'),
             openaiSettings: document.getElementById('openaiSettings'),
@@ -213,6 +208,7 @@
             reader.onerror = error => reject(error);
         });
         const formatVttTime = (seconds) => new Date(seconds * 1000).toISOString().substr(11, 12);
+        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
         function checkButtonsState() {
             const service = elements.serviceSelector.value;
@@ -235,9 +231,7 @@
         
         function resetApp() {
             if (!confirm('האם לאפס את האפליקציה?')) return;
-            selectedFile = null;
-            processedFile = null;
-            transcriptResult = null;
+            selectedFile = null; processedFile = null; transcriptResult = null;
             elements.fileInfo.style.display = 'none';
             elements.audioPreview.style.display = 'none';
             elements.resultArea.style.display = 'none';
@@ -247,9 +241,7 @@
             checkButtonsState();
         }
 
-        function initAudioContext() {
-            if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        }
+        function initAudioContext() { if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)(); }
 
         async function processAudio(file) {
             const arrayBuffer = await file.arrayBuffer();
@@ -267,9 +259,7 @@
             }
             if (elements.normalizeToggle.classList.contains('active')) {
                 const compressor = offlineContext.createDynamicsCompressor();
-                compressor.threshold.value = -24;
-                compressor.knee.value = 30;
-                compressor.ratio.value = 12;
+                compressor.threshold.value = -24; compressor.knee.value = 30; compressor.ratio.value = 12;
                 currentNode.connect(compressor);
                 currentNode = compressor;
             }
@@ -289,11 +279,9 @@
 
         function bufferToWaveFile(audioBuffer) {
             const [numberOfChannels, sampleRate] = [audioBuffer.numberOfChannels, audioBuffer.sampleRate];
-            const bitsPerSample = 16;
-            const bytesPerSample = bitsPerSample / 8;
+            const bitsPerSample = 16; const bytesPerSample = bitsPerSample / 8;
             const length = audioBuffer.length * numberOfChannels * bytesPerSample + 44;
-            const buffer = new ArrayBuffer(length);
-            const view = new DataView(buffer);
+            const buffer = new ArrayBuffer(length); const view = new DataView(buffer);
             let pos = 0;
             const writeString = (str) => { for (let i = 0; i < str.length; i++) view.setUint8(pos + i, str.charCodeAt(i)); pos += str.length; };
             const writeUint32 = (data) => { view.setUint32(pos, data, true); pos += 4; };
@@ -303,8 +291,7 @@
             writeUint32(sampleRate * numberOfChannels * bytesPerSample); writeUint16(numberOfChannels * bytesPerSample);
             writeUint16(bitsPerSample); writeString('data'); writeUint32(length - pos - 4);
             const channels = Array.from({ length: numberOfChannels }, (_, i) => audioBuffer.getChannelData(i));
-            let offset = 0;
-            const maxValue = 32767;
+            let offset = 0; const maxValue = 32767;
             while (pos < length) {
                 for (let i = 0; i < numberOfChannels; i++) {
                     let sample = Math.max(-1, Math.min(1, channels[i][offset] || 0));
@@ -319,9 +306,7 @@
         async function performOpenAiTranscription() {
             const fileToTranscribe = processedFile || selectedFile;
             const formData = new FormData();
-            formData.append('file', fileToTranscribe);
-            formData.append('model', 'whisper-1');
-            formData.append('response_format', 'verbose_json');
+            formData.append('file', fileToTranscribe); formData.append('model', 'whisper-1'); formData.append('response_format', 'verbose_json');
             const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${elements.apiKey.value.trim()}` },
@@ -333,45 +318,58 @@
         }
 
         async function performIvritAiTranscription() {
-            showStatus('ממיר קובץ לשליחה...');
+            showStatus('שולח משימה לשרת...');
             const fileToTranscribe = processedFile || selectedFile;
             const audio_base64 = await fileToBase64(fileToTranscribe);
             
-            // THIS IS THE CORRECTED PAYLOAD STRUCTURE
-            const body = JSON.stringify({
+            const startJobBody = JSON.stringify({
                 input: {
-                    transcribe_args: {
-                        audio_base64: audio_base64,
-                        language: "he"
-                    }
+                    transcribe_args: { audio_base64: audio_base64, language: "he" }
                 }
             });
 
-            const response = await fetch(elements.proxyUrl.value.trim(), {
+            const startResponse = await fetch(elements.proxyUrl.value.trim(), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'x-runpod-api-key': elements.runpodApiKey.value.trim(),
                     'x-runpod-endpoint-id': elements.endpointId.value.trim()
                 },
-                body
+                body: startJobBody
             });
 
-            const result = await response.json();
+            const startResult = await startResponse.json();
+            if (!startResponse.ok || startResult.error) throw new Error(startResult.error || `HTTP ${startResponse.status}`);
+            if (!startResult.id) throw new Error("לא התקבל מזהה משימה מהשרת");
 
-            // Corrected error handling
-            if (!response.ok) {
-                throw new Error(result.error || `שגיאת שרת: ${response.status}`);
+            const jobId = startResult.id;
+            showStatus(`המשימה (${jobId.substring(0,8)}) נשלחה. ממתין לתוצאות...`);
+
+            let pollCount = 0;
+            const maxPolls = 60; // Poll for 5 minutes max (60 * 5s)
+            while (pollCount < maxPolls) {
+                await sleep(5000); // Wait 5 seconds between checks
+                const statusResponse = await fetch(elements.proxyUrl.value.trim(), {
+                    method: 'POST', // Still POST for the worker
+                    headers: {
+                        'x-runpod-api-key': elements.runpodApiKey.value.trim(),
+                        'x-runpod-endpoint-id': elements.endpointId.value.trim(),
+                        'x-job-id': jobId
+                    }
+                });
+
+                const statusResult = await statusResponse.json();
+                if (!statusResponse.ok || statusResult.error) throw new Error(statusResult.error || `HTTP ${statusResponse.status}`);
+                
+                if (statusResult.status === "COMPLETED") {
+                    return statusResult.output;
+                } else if (statusResult.status === "FAILED") {
+                    throw new Error("התמלול נכשל בשרת");
+                }
+                pollCount++;
+                showStatus(`בודק סטטוס... (${pollCount}/${maxPolls})`);
             }
-            if (result.error) {
-                throw new Error(result.error);
-            }
-            
-            if (result.output && result.output.segments) return result.output;
-            if (result.status === "IN_QUEUE" || result.status === "IN_PROGRESS") {
-                 throw new Error("התמלול עדיין בתהליך בשרת, נסה שוב בעוד מספר רגעים");
-            }
-            throw new Error('תגובה לא תקינה מהשרת');
+            throw new Error("התמלול ארך זמן רב מדי");
         }
         
         function displayResults() {
