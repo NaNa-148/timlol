@@ -14,9 +14,6 @@
         .subtitle { color: #666; font-size: 1.1rem; margin-bottom: 20px; }
         .upload-area { border: 3px dashed #667eea; border-radius: 15px; padding: 60px 20px; text-align: center; margin-bottom: 30px; transition: all 0.3s ease; cursor: pointer; background: rgba(102, 126, 234, 0.05); }
         .upload-area:hover { border-color: #764ba2; background: rgba(118, 75, 162, 0.1); transform: translateY(-2px); }
-        .upload-icon { font-size: 4rem; color: #667eea; margin-bottom: 20px; }
-        .upload-text { font-size: 1.3rem; color: #333; margin-bottom: 10px; font-weight: 600; }
-        .upload-subtext { color: #666; font-size: 0.95rem; margin-bottom: 20px; }
         .file-input { display: none; }
         .options { background: rgba(102, 126, 234, 0.05); border-radius: 15px; padding: 25px; margin-bottom: 30px; }
         .option-group { margin-bottom: 20px; }
@@ -202,13 +199,11 @@
             paragraphToggle: document.getElementById('paragraphToggle'),
         };
 
-        // --- LOCAL STORAGE ---
         const storage = {
             save(key, value) { try { if(value) localStorage.setItem(key, value); } catch (e) { console.warn(`Could not save ${key}`, e); } },
             load(key) { try { return localStorage.getItem(key) || ''; } catch (e) { console.warn(`Could not load ${key}`, e); return ''; } }
         };
 
-        // --- HELPERS ---
         const fileToBase64 = file => new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.readAsDataURL(file);
@@ -217,7 +212,6 @@
         });
         const formatVttTime = (seconds) => new Date(seconds * 1000).toISOString().substr(11, 12);
 
-        // --- UI & STATE MANAGEMENT ---
         function checkButtonsState() {
             const service = elements.serviceSelector.value;
             let hasCredentials = false;
@@ -251,13 +245,11 @@
             checkButtonsState();
         }
 
-        // --- AUDIO PROCESSING ---
         function initAudioContext() {
             if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
         }
 
         async function processAudio(file) {
-            // This function remains unchanged from your original code
             const arrayBuffer = await file.arrayBuffer();
             const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
             const offlineContext = new OfflineAudioContext(audioBuffer.numberOfChannels, audioBuffer.length, audioBuffer.sampleRate);
@@ -294,7 +286,6 @@
         }
 
         function bufferToWaveFile(audioBuffer) {
-            // This function remains unchanged from your original code
             const [numberOfChannels, sampleRate] = [audioBuffer.numberOfChannels, audioBuffer.sampleRate];
             const bitsPerSample = 16;
             const bytesPerSample = bitsPerSample / 8;
@@ -323,8 +314,6 @@
             return new Blob([buffer], { type: 'audio/wav' });
         }
 
-
-        // --- TRANSCRIPTION LOGIC ---
         async function performOpenAiTranscription() {
             const fileToTranscribe = processedFile || selectedFile;
             const formData = new FormData();
@@ -345,7 +334,18 @@
             showStatus('ממיר קובץ לשליחה...');
             const fileToTranscribe = processedFile || selectedFile;
             const audio_base64 = await fileToBase64(fileToTranscribe);
-            const body = JSON.stringify({ input: { audio_base64, language: "he" } });
+            
+            // --- THIS IS THE FIX ---
+            const body = JSON.stringify({
+                input: {
+                    transcribe_args: { // The arguments must be nested inside 'transcribe_args'
+                        audio_base64: audio_base64,
+                        language: "he"
+                    }
+                }
+            });
+            // --- END OF FIX ---
+
             const response = await fetch(elements.proxyUrl.value.trim(), {
                 method: 'POST',
                 headers: {
@@ -356,7 +356,7 @@
                 body
             });
             const result = await response.json();
-            if (!response.ok || result.error) throw new Error(result.error || `HTTP ${response.status}`);
+            if (!response.ok || result.error) throw new Error(result.error?.message || `HTTP ${response.status}`);
             if (result.output && result.output.segments) return result.output;
             if (result.status === "IN_QUEUE" || result.status === "IN_PROGRESS") {
                  throw new Error("התמלול עדיין בתהליך בשרת, נסה שוב בעוד מספר רגעים");
@@ -364,7 +364,6 @@
             throw new Error('תגובה לא תקינה מהשרת');
         }
         
-        // --- DISPLAY & DOWNLOAD ---
         function displayResults() {
             if (!transcriptResult || !transcriptResult.segments) return;
             const showTimestamps = elements.timestampToggle.classList.contains('active');
@@ -399,7 +398,6 @@
              URL.revokeObjectURL(a.href);
         }
 
-        // --- EVENT HANDLERS ---
         function setupEventListeners() {
             elements.serviceSelector.addEventListener('change', (e) => {
                 const is_openai = e.target.value === 'openai';
@@ -418,7 +416,7 @@
             elements.fileInput.addEventListener('change', (e) => {
                 if (e.target.files[0]) {
                     selectedFile = e.target.files[0];
-                    processedFile = null; // Reset processed file on new upload
+                    processedFile = null;
                     elements.fileName.textContent = selectedFile.name;
                     elements.fileSize.textContent = `(${(selectedFile.size / 1024 / 1024).toFixed(2)} MB)`;
                     elements.fileInfo.style.display = 'block';
@@ -478,7 +476,6 @@
             elements.resetButton.addEventListener('click', resetApp);
         }
 
-        // --- APP INITIALIZATION ---
         function initApp() {
             ['apiKey', 'proxyUrl', 'endpointId', 'runpodApiKey', 'serviceSelector'].forEach(id => {
                 const savedValue = storage.load(id);
