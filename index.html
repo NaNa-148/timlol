@@ -422,6 +422,7 @@
                 if (statusResult.error) throw new Error(statusResult.error);
                 
                 if (statusResult.status === "COMPLETED") {
+                    console.log("Full response from RunPod:", statusResult); // Log the full response for debugging
                     return statusResult.output;
                 } else if (statusResult.status === "FAILED") {
                     throw new Error("התמלול נכשל בשרת");
@@ -432,16 +433,37 @@
             throw new Error("התמלול ארך זמן רב מדי");
         }
         
-        function displayResults() {
-            if (!transcriptResult || !transcriptResult.segments) return;
+        function displayResults(resultData) {
+            transcriptResult = resultData; // Set global variable
+            console.log("Data passed to displayResults:", transcriptResult); // Log the data being displayed
+
+            // Intelligent check for transcription text format
+            let segments = null;
+            if (transcriptResult && transcriptResult.segments) {
+                segments = transcriptResult.segments;
+            } else if (transcriptResult && Array.isArray(transcriptResult)) {
+                // Handle cases where the output might be the segments array directly
+                segments = transcriptResult;
+            }
+
+            if (!segments) {
+                // Fallback if segments are not found, maybe the text is in a 'text' property or is the result itself
+                const fallbackText = transcriptResult?.text || (typeof transcriptResult === 'string' ? transcriptResult : "לא נמצא טקסט תמלול בתוצאה.");
+                elements.transcriptText.textContent = fallbackText;
+                elements.resultArea.style.display = 'block';
+                elements.resultArea.scrollIntoView({ behavior: 'smooth' });
+                return;
+            }
+
             const showTimestamps = elements.timestampToggle.classList.contains('active');
             const showParagraphs = elements.paragraphToggle.classList.contains('active');
             const separator = showParagraphs ? '\n\n' : ' ';
-            let finalResult = transcriptResult.segments.map(segment => {
+            let finalResult = segments.map(segment => {
                 let line = segment.text.trim();
                 if (showTimestamps) line = `[${formatVttTime(segment.start).substring(0, 8)}] ${line}`;
                 return line;
             }).join(separator);
+
             elements.transcriptText.textContent = finalResult;
             elements.resultArea.style.display = 'block';
             elements.resultArea.scrollIntoView({ behavior: 'smooth' });
@@ -522,8 +544,8 @@
                 try {
                     showStatus('נשלח לתמלול...');
                     const service = elements.serviceSelector.value;
-                    transcriptResult = service === 'openai' ? await performOpenAiTranscription() : await performIvritAiTranscription();
-                    displayResults();
+                    const resultData = service === 'openai' ? await performOpenAiTranscription() : await performIvritAiTranscription();
+                    displayResults(resultData); // Pass the result directly
                     showStatus('התמלול הושלם בהצלחה! ✅', 'success');
                 } catch (error) {
                     console.error('Transcription error:', error);
@@ -537,7 +559,7 @@
             document.querySelectorAll('.toggle').forEach(toggle => {
                 toggle.addEventListener('click', () => {
                     toggle.classList.toggle('active');
-                    if (transcriptResult) displayResults();
+                    if (transcriptResult) displayResults(transcriptResult);
                 });
             });
             
