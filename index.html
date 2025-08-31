@@ -407,12 +407,21 @@
             margin-bottom: 20px;
             padding-bottom: 15px;
             border-bottom: 2px solid #f0f0f0;
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
         .result-title {
             font-size: 1.3rem;
             font-weight: 600;
             color: #333;
+        }
+        
+        .result-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
         }
 
         .transcript-text {
@@ -641,8 +650,13 @@
         <div class="result-area" id="resultArea">
             <div class="result-header">
                 <div class="result-title">תוצאת התמלול</div>
-                <div>
-                    <button class="button process-button" id="improveButton" style="margin-left: 10px; display: none;">🔧 תיקון אוטומטי</button>
+                <div class="result-actions">
+                    <select id="improveModelSelect" class="api-input" style="width: auto; margin-bottom: 0;">
+                        <option value="gpt-5-placeholder">GPT-5 (עתידי)</option>
+                        <option value="gpt-4o" selected>GPT-4o (הכי חדש)</option>
+                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                    </select>
+                    <button class="button process-button" id="improveButton" style="display: none;">🔧 תיקון אוטומטי</button>
                     <button class="button download-button" id="downloadButton">הורד כ-TXT</button>
                 </div>
             </div>
@@ -652,11 +666,11 @@
             </div>
         </div>
 
-        <button id="resetButton" class="reset-button">איפוס</button>
+        <button id="resetButton" class="reset-button">איפוס מלא</button>
     </div>
 
     <script>
-        // Global variables
+        // Global state
         let selectedFile = null;
         let processedFile = null;
         let transcriptResult = '';
@@ -683,6 +697,7 @@
             transcriptText: document.getElementById('transcriptText'),
             improvedText: document.getElementById('improvedText'),
             improveButton: document.getElementById('improveButton'),
+            improveModelSelect: document.getElementById('improveModelSelect'),
             downloadButton: document.getElementById('downloadButton'),
             languageSelect: document.getElementById('languageSelect'),
             resetButton: document.getElementById('resetButton'),
@@ -699,7 +714,7 @@
             timestampToggle: document.getElementById('timestampToggle')
         };
 
-        // Storage functions
+        // --- LOCAL STORAGE ---
         const storage = {
             saveApiKey(key) {
                 if (key?.trim()) {
@@ -710,39 +725,22 @@
                     }
                 }
             },
-
             loadApiKey() {
                 try {
                     const saved = localStorage.getItem('hebrew_transcription_api_key');
                     if (saved?.trim()) {
                         elements.apiKey.value = saved.trim();
-                        checkTranscribeButton();
                         return true;
                     }
                 } catch (error) {
                     console.warn('Could not load API key:', error);
                 }
                 return false;
-            },
-
-            clearApiKey() {
-                try {
-                    localStorage.removeItem('hebrew_transcription_api_key');
-                } catch (error) {
-                    console.warn('Could not clear API key:', error);
-                }
             }
         };
 
-        // Audio context functions
-        function initAudioContext() {
-            if (!audioContext) {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            }
-        }
-
-        // UI Helper functions
-        function checkTranscribeButton() {
+        // --- UI & HELPERS ---
+        function checkButtonsState() {
             const apiKey = elements.apiKey.value.trim();
             const hasFile = selectedFile || processedFile;
             elements.transcribeButton.disabled = !apiKey || !hasFile;
@@ -766,82 +764,21 @@
         function hideStatus() {
             elements.status.style.display = 'none';
         }
-
-        // Toggle functionality
-        function setupToggles() {
-            document.querySelectorAll('.toggle').forEach(toggle => {
-                toggle.addEventListener('click', () => {
-                    toggle.classList.toggle('active');
-                    
-                    if (toggle.id === 'noiseReductionToggle') {
-                        const isActive = toggle.classList.contains('active');
-                        elements.noiseReductionLevel.disabled = !isActive;
-                        elements.noiseSliderContainer.classList.toggle('disabled', !isActive);
-                    }
-                    
-                    if (toggle.id === 'normalizeToggle') {
-                        const isActive = toggle.classList.contains('active');
-                        elements.volumeLevel.disabled = !isActive;
-                        elements.volumeSliderContainer.classList.toggle('disabled', !isActive);
-                    }
-                });
-            });
-        }
-
-        function initializeSliderStates() {
-            // Noise reduction slider
-            const noiseActive = elements.noiseReductionToggle.classList.contains('active');
-            elements.noiseReductionLevel.disabled = !noiseActive;
-            elements.noiseSliderContainer.classList.toggle('disabled', !noiseActive);
+        
+        function setButtonState(button, text, state = 'default') {
+            button.disabled = state === 'loading';
+            button.textContent = text;
             
-            // Volume slider
-            const volumeActive = elements.normalizeToggle.classList.contains('active');
-            elements.volumeLevel.disabled = !volumeActive;
-            elements.volumeSliderContainer.classList.toggle('disabled', !volumeActive);
+            const stateColors = {
+                default: '',
+                success: 'linear-gradient(135deg, #28a745, #20c997)',
+                error: 'linear-gradient(135deg, #dc3545, #c82333)'
+            };
+            
+            button.style.background = stateColors[state] || '';
         }
 
-        function setupSliders() {
-            elements.noiseReductionLevel.addEventListener('input', (e) => {
-                elements.noiseReductionValue.textContent = e.target.value + '%';
-            });
-
-            elements.volumeLevel.addEventListener('input', (e) => {
-                elements.volumeValue.textContent = e.target.value + '%';
-            });
-        }
-
-        // File handling
-        function setupFileHandling() {
-            elements.uploadArea.addEventListener('click', () => {
-                elements.fileInput.click();
-            });
-
-            elements.uploadArea.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                elements.uploadArea.classList.add('dragover');
-            });
-
-            elements.uploadArea.addEventListener('dragleave', () => {
-                elements.uploadArea.classList.remove('dragover');
-            });
-
-            elements.uploadArea.addEventListener('drop', (e) => {
-                e.preventDefault();
-                elements.uploadArea.classList.remove('dragover');
-                const files = e.dataTransfer.files;
-                if (files.length > 0) {
-                    handleFileSelect(files[0]);
-                }
-            });
-
-            elements.fileInput.addEventListener('change', (e) => {
-                if (e.target.files.length > 0) {
-                    handleFileSelect(e.target.files[0]);
-                    setTimeout(() => e.target.value = '', 100);
-                }
-            });
-        }
-
+        // --- FILE HANDLING ---
         function handleFileSelect(file) {
             if (!file) return;
             
@@ -855,18 +792,14 @@
                 elements.audioPreview.style.display = 'block';
                 elements.resultArea.style.display = 'none';
                 
-                // Reset process button
-                elements.processButton.textContent = 'עבד אודיו';
-                elements.processButton.style.background = '';
+                setButtonState(elements.processButton, 'עבד אודיו', 'default');
                 
-                // Load audio for preview
                 const url = URL.createObjectURL(file);
                 elements.audioPlayer.src = url;
                 
                 drawWaveform(file);
-                checkTranscribeButton();
+                checkButtonsState();
                 
-                // Check file size
                 if (file.size > 25 * 1024 * 1024) {
                     const sizeMB = (file.size / 1024 / 1024).toFixed(1);
                     alert(`⚠️ הקובץ גדול (${sizeMB}MB) מהמגבלה של OpenAI (25MB).\n\nהמערכת תדחוס אותו אוטומטית בעיבוד האודיו.`);
@@ -878,7 +811,13 @@
             }
         }
 
-        // Waveform drawing
+        // --- AUDIO PROCESSING & WAVEFORM ---
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
         function drawWaveform(file) {
             const canvas = elements.waveformCanvas;
             const ctx = canvas.getContext('2d');
@@ -892,10 +831,8 @@
             file.arrayBuffer().then(arrayBuffer => {
                 if (audioContext) {
                     return audioContext.decodeAudioData(arrayBuffer);
-                } else {
-                    drawSimpleWaveform(ctx, canvas);
-                    return Promise.reject('No audio context');
                 }
+                return Promise.reject('No audio context');
             }).then(audioBuffer => {
                 drawAudioWaveform(ctx, canvas, audioBuffer);
             }).catch(error => {
@@ -941,11 +878,9 @@
                 ctx.moveTo(i, (1 + min) * amp);
                 ctx.lineTo(i, (1 + max) * amp);
             }
-            
             ctx.stroke();
         }
 
-        // Audio processing
         async function processAudio(file) {
             const arrayBuffer = await file.arrayBuffer();
             const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
@@ -962,12 +897,15 @@
             
             // Apply noise reduction
             if (elements.noiseReductionToggle.classList.contains('active')) {
-                const noiseReduction = await createNoiseReductionFilter(offlineContext, audioBuffer);
+                const noiseReduction = context.createBiquadFilter();
+                noiseReduction.type = 'highpass';
+                noiseReduction.frequency.value = Math.min(200 + (elements.noiseReductionLevel.value * 3), 800);
+                noiseReduction.Q.value = 1;
                 currentNode.connect(noiseReduction);
                 currentNode = noiseReduction;
             }
             
-            // Apply normalization
+            // Apply normalization (compressor)
             if (elements.normalizeToggle.classList.contains('active')) {
                 const compressor = offlineContext.createDynamicsCompressor();
                 compressor.threshold.value = -24;
@@ -996,52 +934,22 @@
             return bufferToWaveFile(processedBuffer);
         }
 
-        async function createNoiseReductionFilter(context, audioBuffer) {
-            const filter = context.createBiquadFilter();
-            filter.type = 'highpass';
-            
-            const noiseLevel = elements.noiseReductionLevel.value;
-            filter.frequency.value = Math.min(200 + (noiseLevel * 3), 800);
-            filter.Q.value = 1;
-            
-            return filter;
-        }
-
         function bufferToWaveFile(audioBuffer, targetBitRate = 128) {
-            const numberOfChannels = audioBuffer.numberOfChannels;
-            const sampleRate = audioBuffer.sampleRate;
-            
-            let bitsPerSample = 16;
-            if (targetBitRate <= 64) {
-                bitsPerSample = 8;
-            } else if (targetBitRate <= 96) {
-                bitsPerSample = 12;
-            }
-            
-            const bytesPerSample = Math.ceil(bitsPerSample / 8);
+            const [numberOfChannels, sampleRate] = [audioBuffer.numberOfChannels, audioBuffer.sampleRate];
+            const bitsPerSample = 16;
+            const bytesPerSample = bitsPerSample / 8;
             const length = audioBuffer.length * numberOfChannels * bytesPerSample + 44;
             const buffer = new ArrayBuffer(length);
             const view = new DataView(buffer);
             let pos = 0;
 
             const writeString = (str) => {
-                for (let i = 0; i < str.length; i++) {
-                    view.setUint8(pos + i, str.charCodeAt(i));
-                }
+                for (let i = 0; i < str.length; i++) view.setUint8(pos + i, str.charCodeAt(i));
                 pos += str.length;
             };
-            
-            const writeUint32 = (data) => {
-                view.setUint32(pos, data, true);
-                pos += 4;
-            };
-            
-            const writeUint16 = (data) => {
-                view.setUint16(pos, data, true);
-                pos += 2;
-            };
+            const writeUint32 = (data) => { view.setUint32(pos, data, true); pos += 4; };
+            const writeUint16 = (data) => { view.setUint16(pos, data, true); pos += 2; };
 
-            // WAV header
             writeString('RIFF');
             writeUint32(length - 8);
             writeString('WAVE');
@@ -1056,155 +964,113 @@
             writeString('data');
             writeUint32(length - pos - 4);
 
-            // Write audio data
-            const channels = [];
-            for (let i = 0; i < numberOfChannels; i++) {
-                channels.push(audioBuffer.getChannelData(i));
-            }
-
+            const channels = Array.from({ length: numberOfChannels }, (_, i) => audioBuffer.getChannelData(i));
             let offset = 0;
-            const maxValue = Math.pow(2, bitsPerSample - 1) - 1;
-            const minValue = -Math.pow(2, bitsPerSample - 1);
+            const maxValue = 32767;
 
             while (pos < length) {
                 for (let i = 0; i < numberOfChannels; i++) {
                     let sample = Math.max(-1, Math.min(1, channels[i][offset] || 0));
-                    sample = sample < 0 ? sample * Math.abs(minValue) : sample * maxValue;
-                    
-                    if (bitsPerSample === 8) {
-                        view.setUint8(pos, Math.round(sample + 128));
-                        pos += 1;
-                    } else {
-                        view.setInt16(pos, Math.round(sample), true);
-                        pos += 2;
-                    }
+                    view.setInt16(pos, sample * maxValue, true);
+                    pos += 2;
                 }
                 offset++;
             }
-
             return new Blob([buffer], { type: 'audio/wav' });
         }
 
-        // Transcription
+        // --- OPENAI API ---
         async function performTranscription(file, apiKey) {
-            try {
-                showStatus('מעבד קובץ אודיו...');
-                
-                if (file.size > 25 * 1024 * 1024) {
-                    throw new Error('קובץ גדול מדי. הגודל המקסימלי הוא 25MB');
-                }
-
-                let fileToSend = file;
-                
-                if (file instanceof Blob && !file.name) {
-                    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-                    const originalName = selectedFile ? selectedFile.name.replace(/\.[^/.]+$/, "") : "processed";
-                    fileToSend = new File([file], `${originalName}_processed_${timestamp}.wav`, { 
-                        type: 'audio/wav' 
-                    });
-                }
-                
-                if (!fileToSend.name) {
-                    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-                    fileToSend = new File([fileToSend], `audio_${timestamp}.wav`, { 
-                        type: fileToSend.type || 'audio/wav' 
-                    });
-                }
-
-                const formData = new FormData();
-                formData.append('file', fileToSend);
-                formData.append('model', 'whisper-1');
-                
-                const selectedLanguage = elements.languageSelect.value;
-                if (selectedLanguage !== 'auto') {
-                    formData.append('language', selectedLanguage);
-                }
-                
-                formData.append('response_format', 'json');
-
-                showStatus('שולח לשירות OpenAI Whisper...');
-
-                const response = await new Promise((resolve, reject) => {
-                    const xhr = new XMLHttpRequest();
-                    
-                    xhr.open('POST', 'https://api.openai.com/v1/audio/transcriptions');
-                    xhr.setRequestHeader('Authorization', `Bearer ${apiKey}`);
-                    
-                    xhr.onload = function() {
-                        if (xhr.status >= 200 && xhr.status < 300) {
-                            try {
-                                const result = JSON.parse(xhr.responseText);
-                                resolve(result);
-                            } catch (e) {
-                                reject(new Error('תגובה לא תקינה מהשרת'));
-                            }
-                        } else {
-                            try {
-                                const errorData = JSON.parse(xhr.responseText);
-                                let errorMessage = errorData.error?.message || errorData.message || `HTTP ${xhr.status}`;
-                                
-                                if (errorMessage.includes('rate limit')) {
-                                    errorMessage = 'חרגת ממגבלת הקריאות. המתן מספר דקות ונסה שוב';
-                                } else if (errorMessage.includes('quota') || errorMessage.includes('credit')) {
-                                    errorMessage = 'חרגת ממכסת הקרדיט או אין אשראי בחשבון OpenAI';
-                                } else if (errorMessage.includes('invalid api key') || errorMessage.includes('authentication')) {
-                                    errorMessage = 'מפתח API לא תקין. בדוק את המפתח בפלטפורמת OpenAI';
-                                } else if (errorMessage.includes('audio file is invalid') || errorMessage.includes('unsupported')) {
-                                    errorMessage = 'קובץ האודיו לא נתמך או פגום. נסה להמיר ל-MP3 או WAV';
-                                } else if (errorMessage.includes('file size')) {
-                                    errorMessage = 'הקובץ גדול מדי. הגודל המקסימלי הוא 25MB';
-                                }
-                                
-                                reject(new Error(errorMessage));
-                            } catch (e) {
-                                reject(new Error(`שגיאת שרת: ${xhr.status} ${xhr.statusText}`));
-                            }
-                        }
-                    };
-                    
-                    xhr.onerror = () => reject(new Error('שגיאת רשת או חסימת CORS. נסה דפדפן אחר או השתמש בשרת proxy'));
-                    xhr.ontimeout = () => reject(new Error('תם זמן ההמתנה. הקובץ גדול מדי או בעיה ברשת'));
-                    xhr.timeout = 120000;
-                    
-                    xhr.upload.addEventListener('progress', (e) => {
-                        if (e.lengthComputable) {
-                            const percentComplete = (e.loaded / e.total) * 50;
-                            elements.progressFill.style.width = percentComplete + '%';
-                            showStatus(`מעלה קובץ... ${Math.round(percentComplete)}%`);
-                        }
-                    });
-                    
-                    xhr.addEventListener('progress', (e) => {
-                        if (e.lengthComputable) {
-                            const percentComplete = 50 + (e.loaded / e.total) * 50;
-                            elements.progressFill.style.width = percentComplete + '%';
-                            showStatus(`מקבל תמלול... ${Math.round(percentComplete)}%`);
-                        } else {
-                            showStatus('מעבד תמלול...');
-                        }
-                    });
-                    
-                    xhr.send(formData);
-                });
-
-                if (!response.text || response.text.trim() === '') {
-                    throw new Error('לא זוהה טקסט בקובץ האודיו. ייתכן שהקול לא ברור או שהקובץ ריק');
-                }
-
-                transcriptResult = response.text.trim();
-                elements.progressFill.style.width = '100%';
-                displayResults();
-
-            } catch (error) {
-                console.error('Transcription error:', error);
-                throw error;
+            showStatus('מעבד קובץ אודיו...');
+            if (file.size > 25 * 1024 * 1024) throw new Error('קובץ גדול מדי. הגודל המקסימלי הוא 25MB');
+            
+            let fileToSend = file;
+            if (file instanceof Blob && !file.name) {
+                const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+                const originalName = selectedFile ? selectedFile.name.replace(/\.[^/.]+$/, "") : "processed";
+                fileToSend = new File([file], `${originalName}_processed_${timestamp}.wav`, { type: 'audio/wav' });
             }
+
+            const formData = new FormData();
+            formData.append('file', fileToSend);
+            formData.append('model', 'whisper-1');
+            const selectedLanguage = elements.languageSelect.value;
+            if (selectedLanguage !== 'auto') formData.append('language', selectedLanguage);
+            formData.append('response_format', 'json');
+
+            showStatus('שולח לשירות OpenAI Whisper...');
+            
+            // Using modern fetch instead of XMLHttpRequest
+            const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${apiKey}` },
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                let errorMessage = result.error?.message || `HTTP ${response.status}`;
+                if (errorMessage.includes('rate limit')) errorMessage = 'חרגת ממגבלת הקריאות. המתן מספר דקות ונסה שוב';
+                else if (errorMessage.includes('quota') || errorMessage.includes('credit')) errorMessage = 'חרגת ממכסת הקרדיט או אין אשראי בחשבון OpenAI';
+                else if (errorMessage.includes('invalid api key') || errorMessage.includes('authentication')) errorMessage = 'מפתח API לא תקין. בדוק את המפתח בפלטפורמת OpenAI';
+                else if (errorMessage.includes('audio file is invalid') || errorMessage.includes('unsupported')) errorMessage = 'קובץ האודיו לא נתמך או פגום. נסה להמיר ל-MP3 או WAV';
+                throw new Error(errorMessage);
+            }
+            
+            if (!result.text || result.text.trim() === '') {
+                throw new Error('לא זוהה טקסט בקובץ האודיו. ייתכן שהקול לא ברור או שהקובץ ריק');
+            }
+
+            transcriptResult = result.text.trim();
+            displayResults();
+        }
+        
+        async function improveText(text, apiKey) {
+            const selectedModel = elements.improveModelSelect.value;
+             if (selectedModel === 'gpt-5-placeholder') {
+                alert('מודל GPT-5 עדיין לא זמין. אנא בחר מודל אחר.');
+                throw new Error('Model not available');
+            }
+            
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: selectedModel,
+                    messages: [{
+                        role: 'system',
+                        content: 'אתה עורך טקסט מקצועי בעברית. המשימה שלך היא לתקן שגיאות דקדוק, כתיב, פיסוק ולהשלים מילים חסרות בטקסט שקיבלת מתמלול אודיו. שמור על המשמעות המקורית והתוכן, רק תקן שגיאות ותשפר את הקריאות. תקן גם מילים שנשמעו לא נכון או לא מובנות.'
+                    }, {
+                        role: 'user',
+                        content: `אנא תקן ותשפר את הטקסט הבא מתמלול אודיו:\n\n${text}`
+                    }],
+                    max_tokens: 4000,
+                    temperature: 0.2
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+            }
+
+            const result = await response.json();
+            const improvedContent = result.choices[0]?.message?.content?.trim();
+            
+            if (!improvedContent || improvedContent === text) {
+                throw new Error('לא ניתן לשפר את הטקסט או שהוא כבר מושלם');
+            }
+            
+            return improvedContent;
         }
 
         function displayResults() {
             let finalResult = transcriptResult;
 
-            // Add timestamps if enabled
             if (elements.timestampToggle.classList.contains('active')) {
                 const sentences = finalResult.split(/[.!?]+/).filter(s => s.trim().length > 0);
                 finalResult = sentences.map((sentence, index) => {
@@ -1215,7 +1081,6 @@
                 }).join('. ') + '.';
             }
 
-            // Add speaker identification if enabled
             if (elements.speakerToggle.classList.contains('active')) {
                 finalResult = 'משתתף 1: ' + finalResult;
             }
@@ -1231,59 +1096,39 @@
             setTimeout(hideStatus, 5000);
         }
 
-        // Text improvement
-        async function improveText(text, apiKey) {
-            try {
-                const response = await fetch('https://api.openai.com/v1/chat/completions', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${apiKey}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        model: 'gpt-3.5-turbo',
-                        messages: [{
-                            role: 'system',
-                            content: 'אתה עורך טקסט מקצועי בעברית. המשימה שלך היא לתקן שגיאות דקדוק, כתיב, פיסוק ולהשלים מילים חסרות בטקסט שקיבלת מתמלול אודיו. שמור על המשמעות המקורית והתוכן, רק תקן שגיאות ותשפר את הקריאות. תקן גם מילים שנשמעו לא נכון או לא מובנות.'
-                        }, {
-                            role: 'user',
-                            content: `אנא תקן ותשפר את הטקסט הבא מתמלול אודיו:\n\n${text}`
-                        }],
-                        max_tokens: 4000,
-                        temperature: 0.2
-                    })
-                });
+        // --- APP RESET & INITIALIZATION ---
+        function resetSettingsToDefault() {
+            // Language
+            elements.languageSelect.value = 'he';
+            
+            // Audio processing toggles and sliders
+            elements.noiseReductionToggle.classList.add('active');
+            elements.noiseReductionLevel.value = 30;
+            elements.noiseReductionValue.textContent = '30%';
+            elements.noiseReductionLevel.disabled = false;
+            elements.noiseSliderContainer.classList.remove('disabled');
 
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error?.message || `HTTP ${response.status}`);
-                }
+            elements.normalizeToggle.classList.add('active');
+            elements.volumeLevel.value = 100;
+            elements.volumeValue.textContent = '100%';
+            elements.volumeLevel.disabled = false;
+            elements.volumeSliderContainer.classList.remove('disabled');
+            
+            // Transcription toggles
+            elements.speakerToggle.classList.remove('active');
+            elements.timestampToggle.classList.add('active');
 
-                const result = await response.json();
-                const improvedText = result.choices[0]?.message?.content?.trim();
-                
-                if (!improvedText || improvedText === text) {
-                    throw new Error('לא ניתן לשפר את הטקסט או שהוא כבר מושלם');
-                }
-                
-                return improvedText;
-                
-            } catch (error) {
-                console.error('Text improvement error:', error);
-                throw error;
-            }
+            // Text improvement model
+            elements.improveModelSelect.value = 'gpt-4o';
         }
-
-        // Reset functionality
+        
         function resetApp() {
-            if (confirm('האם אתה בטוח שברצונך לאפס הכל?\n\nזה ימחק את הקובץ, התמלול וההגדרות (למעט מפתח ה-API).')) {
-                // Reset variables
+            if (confirm('האם אתה בטוח שברצונך לאפס את האפליקציה?\n\nכל הקבצים, התמלולים וההגדרות יחזרו למצב ברירת המחדל.')) {
                 selectedFile = null;
                 processedFile = null;
                 transcriptResult = '';
                 improvedResult = '';
                 
-                // Reset UI elements
                 elements.fileInfo.style.display = 'none';
                 elements.audioPreview.style.display = 'none';
                 elements.resultArea.style.display = 'none';
@@ -1293,40 +1138,29 @@
                 elements.improveButton.style.display = 'none';
                 hideStatus();
                 
-                // Reset audio player
                 elements.audioPlayer.src = '';
+                setButtonState(elements.processButton, 'עבד אודיו');
+                setButtonState(elements.improveButton, '🔧 תיקון אוטומטי');
                 
-                // Reset buttons
-                elements.processButton.textContent = 'עבד אודיו';
-                elements.processButton.style.background = '';
-                elements.processButton.disabled = true;
-                
-                elements.improveButton.textContent = '🔧 תיקון אוטומטי';
-                elements.improveButton.style.background = '';
-                
-                // Clear canvas
                 const ctx = elements.waveformCanvas.getContext('2d');
                 ctx.clearRect(0, 0, elements.waveformCanvas.width, elements.waveformCanvas.height);
                 
-                // Reset inputs
                 elements.fileInput.value = '';
                 elements.transcriptText.textContent = '';
                 elements.improvedText.innerHTML = '<div style="font-weight: bold; margin-bottom: 10px; color: #28a745;">✨ טקסט מתוקן:</div>';
                 
-                checkTranscribeButton();
+                resetSettingsToDefault();
+                checkButtonsState();
                 console.log('System reset completed');
             }
         }
 
-        // Event handlers setup
-        function setupEventHandlers() {
-            // API key handling
+        // --- EVENT LISTENERS SETUP ---
+        function setupEventListeners() {
             elements.apiKey.addEventListener('input', (e) => {
                 const key = e.target.value.trim();
-                if (key && key.length > 10) {
-                    storage.saveApiKey(key);
-                }
-                checkTranscribeButton();
+                if (key && key.length > 10) storage.saveApiKey(key);
+                checkButtonsState();
             });
 
             elements.apiKey.addEventListener('blur', (e) => {
@@ -1334,51 +1168,39 @@
                 if (key) storage.saveApiKey(key);
             });
 
-            // Process button
             elements.processButton.addEventListener('click', async () => {
                 if (!selectedFile) return;
                 
-                elements.processButton.disabled = true;
-                elements.processButton.textContent = 'מעבד...';
+                setButtonState(elements.processButton, 'מעבד...', 'loading');
                 
                 try {
                     if (!audioContext) initAudioContext();
-                    if (audioContext.state === 'suspended') {
-                        await audioContext.resume();
-                    }
+                    if (audioContext.state === 'suspended') await audioContext.resume();
                     
-                    const processedAudio = await processAudio(selectedFile);
-                    processedFile = processedAudio;
+                    processedFile = await processAudio(selectedFile);
                     
-                    const url = URL.createObjectURL(processedFile);
-                    elements.audioPlayer.src = url;
-                    
-                    elements.processButton.textContent = 'עובד ✓';
-                    elements.processButton.style.background = 'linear-gradient(135deg, #28a745, #20c997)';
-                    
+                    elements.audioPlayer.src = URL.createObjectURL(processedFile);
+                    setButtonState(elements.processButton, 'עובד ✓', 'success');
                     elements.fileName.textContent = selectedFile.name + ' (מעובד)';
                     elements.fileSize.textContent = formatFileSize(processedFile.size);
                     
                     drawWaveform(processedFile);
-                    checkTranscribeButton();
+                    checkButtonsState();
                     
                 } catch (error) {
                     console.error('Audio processing error:', error);
-                    elements.processButton.textContent = 'שגיאה בעיבוד';
-                    elements.processButton.style.background = 'linear-gradient(135deg, #dc3545, #c82333)';
+                    setButtonState(elements.processButton, 'שגיאה בעיבוד', 'error');
                     alert('שגיאה בעיבוד האודיו: ' + error.message + '\n\nנסה קובץ אחר או התמלל בלי עיבוד.');
                 }
                 
                 setTimeout(() => {
                     elements.processButton.disabled = false;
-                    if (elements.processButton.textContent === 'שגיאה בעיבוד') {
-                        elements.processButton.textContent = 'עבד אודיו';
-                        elements.processButton.style.background = '';
+                    if (elements.processButton.textContent !== 'עובד ✓') {
+                        setButtonState(elements.processButton, 'עבד אודיו', 'default');
                     }
                 }, 3000);
             });
 
-            // Transcribe button
             elements.transcribeButton.addEventListener('click', async () => {
                 const fileToTranscribe = processedFile || selectedFile;
                 const apiKey = elements.apiKey.value.trim();
@@ -1399,28 +1221,6 @@
                 } catch (error) {
                     console.error('Transcription error:', error);
                     showStatus('שגיאה: ' + error.message, 'error');
-                    
-                    const errorDetails = document.createElement('div');
-                    errorDetails.className = 'error-details';
-                    errorDetails.innerHTML = `
-                        <strong>פרטי שגיאה טכניים:</strong><br>
-                        קובץ: ${fileToTranscribe.name || 'קובץ מעובד'}<br>
-                        גודל: ${(fileToTranscribe.size / 1024 / 1024).toFixed(2)} MB<br>
-                        שגיאה: ${error.message}<br><br>
-                        <strong>פתרונות אפשריים:</strong><br>
-                        • בדוק שמפתח ה-API נכון ופעיל<br>
-                        • ודא שיש קרדיט בחשבון OpenAI<br>
-                        • נסה קובץ קטן יותר (מתחת ל-25MB)<br>
-                        • נסה פורמט אחר (MP3, WAV)<br>
-                        • ודא שהקובץ מכיל דיבור ברור<br>
-                        • נסה לרענן את הדף ולנסות שוב<br>
-                    `;
-                    
-                    const existingError = document.querySelector('.error-details');
-                    if (existingError) existingError.remove();
-                    document.querySelector('.container').appendChild(errorDetails);
-                    setTimeout(() => errorDetails.remove(), 20000);
-                    
                 } finally {
                     elements.transcribeButton.disabled = false;
                     elements.loadingSpinner.style.display = 'none';
@@ -1428,7 +1228,6 @@
                 }
             });
 
-            // Improve button
             elements.improveButton.addEventListener('click', async () => {
                 const apiKey = elements.apiKey.value.trim();
                 if (!apiKey) {
@@ -1436,37 +1235,30 @@
                     return;
                 }
 
-                elements.improveButton.disabled = true;
-                elements.improveButton.textContent = '🔄 מתקן...';
+                setButtonState(elements.improveButton, '🔄 מתקן...', 'loading');
 
                 try {
-                    const originalText = elements.transcriptText.textContent;
-                    const improvedTranscript = await improveText(originalText, apiKey);
-                    
+                    const improvedTranscript = await improveText(elements.transcriptText.textContent, apiKey);
                     improvedResult = improvedTranscript;
                     elements.improvedText.innerHTML = '<div style="font-weight: bold; margin-bottom: 10px; color: #28a745;">✨ טקסט מתוקן:</div>' + improvedTranscript;
                     elements.improvedText.style.display = 'block';
-                    
-                    elements.improveButton.textContent = '✅ הושלם';
-                    elements.improveButton.style.background = 'linear-gradient(135deg, #28a745, #20c997)';
-
+                    setButtonState(elements.improveButton, '✅ הושלם', 'success');
                 } catch (error) {
                     console.error('Text improvement error:', error);
-                    alert('שגיאה בתיקון הטקסט: ' + error.message);
-                    elements.improveButton.textContent = '❌ שגיאה';
-                    elements.improveButton.style.background = 'linear-gradient(135deg, #dc3545, #c82333)';
+                    if (error.message !== 'Model not available') {
+                        alert('שגיאה בתיקון הטקסט: ' + error.message);
+                    }
+                    setButtonState(elements.improveButton, '❌ שגיאה', 'error');
                 }
 
                 setTimeout(() => {
                     elements.improveButton.disabled = false;
-                    if (elements.improveButton.textContent !== '✅ הושלם') {
-                        elements.improveButton.textContent = '🔧 תיקון אוטומטי';
-                        elements.improveButton.style.background = '';
+                     if (elements.improveButton.textContent !== '✅ הושלם') {
+                        setButtonState(elements.improveButton, '🔧 תיקון אוטומטי', 'default');
                     }
                 }, 3000);
             });
 
-            // Download button
             elements.downloadButton.addEventListener('click', () => {
                 const hasImprovedText = elements.improvedText.style.display !== 'none' && improvedResult;
                 const textToDownload = hasImprovedText ? improvedResult : elements.transcriptText.textContent;
@@ -1486,35 +1278,63 @@
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
             });
+            
+            // File input listeners
+            elements.uploadArea.addEventListener('click', () => elements.fileInput.click());
+            elements.uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); elements.uploadArea.classList.add('dragover'); });
+            elements.uploadArea.addEventListener('dragleave', () => elements.uploadArea.classList.remove('dragover'));
+            elements.uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                elements.uploadArea.classList.remove('dragover');
+                if (e.dataTransfer.files.length > 0) handleFileSelect(e.dataTransfer.files[0]);
+            });
+            elements.fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    handleFileSelect(e.target.files[0]);
+                    setTimeout(() => e.target.value = '', 100);
+                }
+            });
 
-            // Reset button
+            // Toggles
+            document.querySelectorAll('.toggle').forEach(toggle => {
+                toggle.addEventListener('click', () => {
+                    toggle.classList.toggle('active');
+                    if (toggle.id === 'noiseReductionToggle') {
+                        const isActive = toggle.classList.contains('active');
+                        elements.noiseReductionLevel.disabled = !isActive;
+                        elements.noiseSliderContainer.classList.toggle('disabled', !isActive);
+                    }
+                    if (toggle.id === 'normalizeToggle') {
+                        const isActive = toggle.classList.contains('active');
+                        elements.volumeLevel.disabled = !isActive;
+                        elements.volumeSliderContainer.classList.toggle('disabled', !isActive);
+                    }
+                });
+            });
+
+            // Sliders
+            elements.noiseReductionLevel.addEventListener('input', (e) => { elements.noiseReductionValue.textContent = e.target.value + '%'; });
+            elements.volumeLevel.addEventListener('input', (e) => { elements.volumeValue.textContent = e.target.value + '%'; });
+            
             elements.resetButton.addEventListener('click', resetApp);
         }
 
-        // Initialize app
+        // --- APP INITIALIZATION ---
         function initApp() {
             storage.loadApiKey();
-            setupToggles();
-            initializeSliderStates();
-            setupSliders();
-            setupFileHandling();
-            setupEventHandlers();
+            resetSettingsToDefault();
+            setupEventListeners();
+            checkButtonsState();
             
-            // Initialize audio context on first user interaction
             document.body.addEventListener('click', () => {
                 if (!audioContext) {
-                    try {
-                        initAudioContext();
-                    } catch (error) {
-                        console.warn('Could not initialize audio context:', error);
-                    }
+                    try { initAudioContext(); } catch (e) { console.warn('Could not init audio context', e); }
                 }
             }, { once: true });
             
             console.log('Hebrew Transcription App loaded successfully! 🚀');
         }
 
-        // Start the app when DOM is ready
         document.addEventListener('DOMContentLoaded', initApp);
     </script>
 </body>
