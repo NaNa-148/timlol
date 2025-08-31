@@ -36,6 +36,7 @@
         .file-size { font-size: 0.9rem; }
         .audio-preview { background: rgba(102, 126, 234, 0.1); border-radius: 10px; padding: 15px; margin: 15px 0; display: none; }
         .audio-player { width: 100%; height: 40px; }
+        .waveform-canvas { width: 100%; max-width: 600px; height: 100px; border: 1px solid #ddd; border-radius: 8px; background: #f8f9fa; }
         .button { border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; text-align: center; }
         .process-button { background: linear-gradient(135deg, #17a2b8, #138496); color: white; padding: 8px 16px; font-size: 1rem; }
         .copy-button { background: #f0f0f0; color: #333; padding: 10px 15px; font-size: 0.9rem; }
@@ -105,7 +106,12 @@
             <div class="file-size" id="fileSize"></div>
         </div>
         <div class="audio-preview" id="audioPreview">
-            <audio controls class="audio-player" id="audioPlayer"></audio>
+             <div class="audio-controls">
+                <audio controls class="audio-player" id="audioPlayer"></audio>
+            </div>
+            <div class="canvas-container">
+                <canvas class="waveform-canvas" id="waveformCanvas" width="600" height="100"></canvas>
+            </div>
         </div>
         
         <div class="options">
@@ -178,6 +184,7 @@
             fileSize: document.getElementById('fileSize'),
             audioPreview: document.getElementById('audioPreview'),
             audioPlayer: document.getElementById('audioPlayer'),
+            waveformCanvas: document.getElementById('waveformCanvas'),
             processButton: document.getElementById('processButton'),
             transcribeButton: document.getElementById('transcribeButton'),
             loadingSpinner: document.getElementById('loadingSpinner'),
@@ -240,8 +247,57 @@
             elements.status.style.display = 'none';
             checkButtonsState();
         }
-
+        
         function initAudioContext() { if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)(); }
+
+        function drawWaveform(file) {
+            const canvas = elements.waveformCanvas;
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#667eea';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('טוען צורת גל...', canvas.width / 2, canvas.height / 2);
+            
+            file.arrayBuffer().then(arrayBuffer => {
+                if (audioContext) {
+                    return audioContext.decodeAudioData(arrayBuffer);
+                }
+                return Promise.reject('No audio context');
+            }).then(audioBuffer => {
+                drawAudioWaveform(ctx, canvas, audioBuffer);
+            }).catch(error => {
+                console.warn('Could not draw waveform:', error);
+            });
+        }
+
+        function drawAudioWaveform(ctx, canvas, audioBuffer) {
+            const data = audioBuffer.getChannelData(0);
+            const step = Math.ceil(data.length / canvas.width);
+            const amp = canvas.height / 2;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            
+            for (let i = 0; i < canvas.width; i++) {
+                let min = 1.0;
+                let max = -1.0;
+                
+                for (let j = 0; j < step; j++) {
+                    const datum = data[(i * step) + j];
+                    if (datum < min) min = datum;
+                    if (datum > max) max = datum;
+                }
+                
+                ctx.moveTo(i, (1 + min) * amp);
+                ctx.lineTo(i, (1 + max) * amp);
+            }
+            ctx.stroke();
+        }
 
         async function processAudio(file) {
             const arrayBuffer = await file.arrayBuffer();
@@ -324,7 +380,10 @@
             
             const startJobBody = JSON.stringify({
                 input: {
-                    transcribe_args: { audio_base64: audio_base64, language: "he" }
+                    transcribe_args: { 
+                        blob: audio_base64, // Corrected from 'audio_base64' to 'blob'
+                        language: "he" 
+                    }
                 }
             });
 
@@ -339,7 +398,7 @@
             });
 
             const startResult = await startResponse.json();
-            if (!startResponse.ok || startResult.error) throw new Error(startResult.error || `HTTP ${startResponse.status}`);
+            if (!startResponse.ok || startResult.error) throw new Error(startResult.error?.message || startResult.error || `HTTP ${startResponse.status}`);
             if (!startResult.id) throw new Error("לא התקבל מזהה משימה מהשרת");
 
             const jobId = startResult.id;
@@ -348,9 +407,9 @@
             let pollCount = 0;
             const maxPolls = 60; // Poll for 5 minutes max (60 * 5s)
             while (pollCount < maxPolls) {
-                await sleep(5000); // Wait 5 seconds between checks
+                await sleep(5000); 
                 const statusResponse = await fetch(elements.proxyUrl.value.trim(), {
-                    method: 'POST', // Still POST for the worker
+                    method: 'POST', 
                     headers: {
                         'x-runpod-api-key': elements.runpodApiKey.value.trim(),
                         'x-runpod-endpoint-id': elements.endpointId.value.trim(),
@@ -359,7 +418,8 @@
                 });
 
                 const statusResult = await statusResponse.json();
-                if (!statusResponse.ok || statusResult.error) throw new Error(statusResult.error || `HTTP ${statusResponse.status}`);
+                if (!statusResponse.ok) throw new Error(statusResult.error?.message || `HTTP ${statusResponse.status}`);
+                if (statusResult.error) throw new Error(statusResult.error);
                 
                 if (statusResult.status === "COMPLETED") {
                     return statusResult.output;
@@ -430,6 +490,8 @@
                     elements.fileInfo.style.display = 'block';
                     elements.audioPreview.style.display = 'block';
                     elements.audioPlayer.src = URL.createObjectURL(selectedFile);
+                    initAudioContext();
+                    drawWaveform(selectedFile);
                     checkButtonsState();
                 }
             });
@@ -443,6 +505,7 @@
                     processedFile = await processAudio(selectedFile);
                     elements.audioPlayer.src = URL.createObjectURL(processedFile);
                     elements.fileName.textContent = selectedFile.name + ' (מעובד)';
+                    drawWaveform(processedFile);
                     elements.processButton.textContent = 'עובד ✓';
                 } catch (error) {
                     alert('שגיאה בעיבוד האודיו: ' + error.message);
