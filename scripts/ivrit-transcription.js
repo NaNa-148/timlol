@@ -1,5 +1,5 @@
-// scripts/ivrit-transcription.js
-// שליחה כ-JSON נקי ל-Worker + polling + ולידציה ברורה
+// /scripts/ivrit-transcription.js
+// שולח JSON (לא FormData) ל־Worker, כולל base64, Polling ותצוגת שגיאות ברורה.
 
 async function performIvritTranscription(file, runpodApiKey, endpointId, workerUrl) {
   if (!runpodApiKey || !endpointId || !workerUrl) {
@@ -10,24 +10,22 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
 
   showStatus('ממיר אודיו ל-Base64…', 'processing');
 
-  // שם בטוח + המרה ל-data URL
   const safeName = (file.name || 'audio').replace(/[^\w.\-]+/g, '_');
-  const dataUrl = await fileToDataUrl(file);         // "data:audio/xxx;base64,AAAA..."
-  const base64 = stripDataUrlPrefix(dataUrl);        // "AAAA..." בלבד
+  const dataUrl = await fileToDataUrl(file);          // "data:audio/xxx;base64,AAAA..."
+  const base64 = stripDataUrlPrefix(dataUrl);         // "AAAA..." בלבד
 
   if (!base64 || base64.length < 100) {
     throw new Error('האודיו לא זוהה/ריק (base64 קצר מדי)');
   }
 
-  // payload שהמודל מצפה לקבל בתוך input.transcribe_args
   const transcribeArgs = {
-    audio_base64: base64,              // שים לב: בלי prefix של data:
+    audio_base64: base64,              // בלי ה-prefix של data:
     filename: safeName,
     mime_type: file.type || 'audio/wav',
     language: 'he',
     punctuate: true,
     diarize: false,
-    // דוגמאות לאופציונלי:
+    // optional:
     // sample_rate: 44100,
     // channels: 1,
   };
@@ -35,14 +33,14 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
   showStatus('שולח את המשימה ל-ivrit.ai…', 'processing');
   simulateProgress(5, 75, 60_000);
 
-  // פתיחת משימה דרך ה-Worker
   const startRes = await fetch(workerUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'x-runpod-api-key': runpodApiKey,
       'x-runpod-endpoint-id': endpointId,
-      // אפשרות לדיבוג: 'x-debug': 'echo'  (ה-Worker יחזיר את מה שהוא שולח ל-RunPod)
+      // דיבוג חד-פעמי: בטל אחרי בדיקה
+      // 'x-debug': 'echo',
     },
     body: JSON.stringify({ transcribe_args: transcribeArgs })
   });
@@ -53,13 +51,13 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
   }
 
   const startData = await safeJson(startRes);
-
-  // אולי קיבלנו תוצאה מיידית:
   let transcript = extractTranscript(startData);
+
   if (!transcript) {
     const jobId =
       startData?.id || startData?.jobId ||
       startData?.data?.id || startData?.data?.jobId;
+
     if (!jobId) {
       console.debug('Start response (no transcript, no jobId):', startData);
       throw new Error('השרת לא החזיר תוצאה וגם לא מזהה משימה (jobId)');
@@ -68,8 +66,7 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
     showStatus('מעבד… (ivrit.ai)', 'processing');
     simulateProgress(75, 98, 180_000);
 
-    // polling עד סיום
-    const deadline = Date.now() + 180_000; // 3 דק׳
+    const deadline = Date.now() + 180_000; // 3 דקות
     while (Date.now() < deadline) {
       await delay(2000);
 
@@ -97,7 +94,6 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
       if (transcript) break;
 
       if (status && /failed|error/i.test(String(status))) {
-        // נסה לחלץ הודעת שגיאה מפנימה כדי לקבל אינדיקציה מהמודל
         const reason = pollData?.error || pollData?.data?.error ||
                        pollData?.output?.error || pollData?.result?.error;
         console.debug('Polling failed payload:', pollData);
