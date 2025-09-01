@@ -1,48 +1,41 @@
-// ivrit.ai transcription (fixed JSON, async polling via Worker)
-// דרישות חיצוניות: showStatus, simulateProgress, finalizeProgress, displayResults,
-// selectedFile (מ-file-handler.js), ו-transcriptResult (גלובלי) קיימים כבר בפרויקט.
+// scripts/ivrit-transcription.js
+// תמלול באמצעות ivrit.ai דרך RunPod + Cloudflare Worker
+// שליחה כ-JSON (לא FormData) + תמיכה בפולינג עד סיום המשימה
 
 async function performIvritTranscription(file, runpodApiKey, endpointId, workerUrl) {
-  // === ולידציה בסיסית ===
   if (!runpodApiKey || !endpointId || !workerUrl) {
     throw new Error('חסרים פרטי חיבור ל-ivrit.ai (RunPod API Key / Endpoint ID / Worker URL)');
   }
-  if (!file) {
-    throw new Error('לא נבחר קובץ אודיו');
-  }
-  if (file.size > 100 * 1024 * 1024) {
-    throw new Error('קובץ גדול מדי עבור ivrit.ai (מקס׳ 100MB)');
-  }
+  if (!file) throw new Error('לא נבחר קובץ אודיו');
+  if (file.size > 100 * 1024 * 1024) throw new Error('קובץ גדול מדי (מקס׳ 100MB)');
 
   showStatus('מכין אודיו לתמלול...', 'processing');
-  // נוודא שיש שם לקובץ (גם אם הגיע מ-Blob ביניים)
-  const origName = (file.name && typeof file.name === 'string')
-    ? file.name
-    : (typeof selectedFile?.name === 'string' ? selectedFile.name : 'audio');
-  const safeName = origName.replace(/[^\w.\-]+/g, '_');
 
-  // המרה ל-Base64 (כולל data URL) כדי לשלוח כ-JSON נקי
+  // שם בטוח לקובץ
+  const origName = file?.name || 'audio';
+  const safeName = String(origName).replace(/[^\w.\-]+/g, '_');
+  // המרת האודיו ל-data URL (base64)
   const audioBase64 = await fileToDataUrl(file); // "data:audio/xxx;base64,AAAA..."
-  const payload = {
-    // אחד מאלה מספיק; בחרנו base64 כדי לא לדרוש אחסון חיצוני
+
+  // ----- זה ה-JSON שהמודל מצפה לקבל בתוך input.transcribe_args -----
+  const transcribeArgs = {
+    // שלח או audio_base64 (data URL) או audio_url (אם מאוחסן בענן)
     audio_base64: audioBase64,
     filename: safeName,
     mime_type: file.type || 'audio/wav',
-
-    // פרמטרים אופציונליים – השאר כראות עינך; הימנע ממחרוזות "מספריות" עם מקפים
-    language: "he",
-    diarize: false,
+    // פרמטרים אופציונליים
+    language: 'he',
     punctuate: true,
-
-    // אם תרצה להגדיר Sample Rate מספרי (ללא "khz-"): 
+    diarize: false,
+    // דוגמאות נכונות אם תרצה:
     // sample_rate: 44100,
     // channels: 1,
   };
 
-  showStatus('שולח בקשה לתמלול ivrit.ai...', 'processing');
-  simulateProgress(5, 75, 60_000); // סימולציית התקדמות עד לתחילת הפולינג
+  showStatus('שולח בקשה לתמלול...', 'processing');
+  simulateProgress(5, 75, 60_000);
 
-  // === התחלת Job דרך ה-Worker ===
+  // פתיחת משימה (Job) דרך ה-Worker
   const startRes = await fetch(workerUrl, {
     method: 'POST',
     headers: {
@@ -50,44 +43,38 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
       'x-runpod-api-key': runpodApiKey,
       'x-runpod-endpoint-id': endpointId
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify({ transcribe_args: transcribeArgs })
   });
 
-  // אם ה-Worker עצמו נפל – נזרוק שגיאה עם טקסט מלא
   if (!startRes.ok) {
     const errText = await startRes.text().catch(() => '');
     throw new Error(`שגיאה ב-Worker: ${startRes.status} – ${errText}`);
   }
-
   const startData = await safeJson(startRes);
 
-  // יתכנו שני תרחישים:
-  // 1) תשובה סינכרונית (מיידית) שכבר כוללת תמלול.
-  // 2) תשובת Job (כולל מזהה) ונצטרך לבצע polling.
+  // אם קיבלנו תוצאה מיידית (נדיר) – נחלץ אותה
   let transcript = extractTranscript(startData);
-
   if (!transcript) {
-    // מחפשים מזהה עבודה להמשך polling
+    // אחרת, מצפה ל-id של ה-Job
     const jobId = startData?.id || startData?.jobId || startData?.data?.id || startData?.data?.jobId;
     if (!jobId) {
-      // הדפס דיבוג ונכשיל ברור
       console.debug('Start response (no transcript, no jobId):', startData);
       throw new Error('השרת לא החזיר תוצאה ולא מזהה משימה (jobId)');
     }
 
     showStatus('מעבד... (ivrit.ai)', 'processing');
-    simulateProgress(75, 98, 180_000); // נתקדם עד ~98% בזמן העיבוד
+    simulateProgress(75, 98, 180_000);
 
-    // === Polling דרך ה-Worker ===
-    const maxWaitMs = 180_000;
-    const intervalMs = 2_000;
-    const deadline = Date.now() + maxWaitMs;
+    // פולינג עד סיום
+    const timeoutMs = 180_000;
+    const intervalMs = 2000;
+    const deadline = Date.now() + timeoutMs;
 
     while (Date.now() < deadline) {
       await delay(intervalMs);
 
       const pollRes = await fetch(workerUrl, {
-        method: 'POST', // נשמור על POST כדי לעבור דרך CORS אחיד, אבל מסמנים jobId בכותרת
+        method: 'POST',
         headers: {
           'x-runpod-api-key': runpodApiKey,
           'x-runpod-endpoint-id': endpointId,
@@ -103,7 +90,6 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
       const pollData = await safeJson(pollRes);
       transcript = extractTranscript(pollData);
 
-      // תרחישי סטטוס נפוצים:
       const status =
         pollData?.status ||
         pollData?.state ||
@@ -118,24 +104,19 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
       }
 
       if (status && /completed|succeeded|success|done/i.test(String(status))) {
-        // ייתכן שהתמלול נמצא בשדה אחר (output/result וכו׳)
         transcript = extractTranscript(pollData);
         if (transcript) break;
-
-        console.debug('Completed state but no transcript:', pollData);
+        console.debug('Completed but no transcript field:', pollData);
         throw new Error('סיום משימה דווח אך ללא תמלול זמין בתשובה');
       }
     }
 
-    if (!transcript) {
-      throw new Error('חריגה מזמן ההמתנה לתמלול (timeout)');
-    }
+    if (!transcript) throw new Error('חריגה מזמן ההמתנה לתמלול (timeout)');
   }
 
-  // === בניית תוצאה בפורמט אחיד לאפליקציה ===
   transcriptResult = {
     text: transcript.text,
-    segments: transcript.segments && Array.isArray(transcript.segments) && transcript.segments.length
+    segments: Array.isArray(transcript.segments) && transcript.segments.length
       ? transcript.segments
       : [{ start: 0, end: 0, text: transcript.text }]
   };
@@ -145,21 +126,7 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
   showStatus('התמלול הושלם בהצלחה ✔️', 'success');
 }
 
-// בדיקת זמינות Worker (אופציונלי)
-async function checkIvritAiStatus(workerUrl) {
-  if (!workerUrl) return false;
-  try {
-    const url = workerUrl.replace(/\/+$/, '') + '/health';
-    const res = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(5000) });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-// ===== עזרי עיבוד מקומיים =====
-
-// המרת File/Blob ל-data URL (base64)
+// ===== עזרי עיבוד =====
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -168,54 +135,18 @@ function fileToDataUrl(file) {
     r.readAsDataURL(file);
   });
 }
-
-function delay(ms) {
-  return new Promise(res => setTimeout(res, ms));
-}
-
+function delay(ms) { return new Promise(res => setTimeout(res, ms)); }
 async function safeJson(res) {
-  try {
-    return await res.json();
-  } catch (e) {
-    const t = await res.text().catch(() => '');
-    console.debug('Non-JSON response body:', t);
-    throw new Error('תשובת השרת אינה JSON תקין');
-  }
+  try { return await res.json(); }
+  catch { const t = await res.text().catch(() => ''); console.debug('Non-JSON:', t); throw new Error('תשובת השרת אינה JSON תקין'); }
 }
-
-// חילוץ תמלול מכל צורה סבירה שהספק יחזיר
 function extractTranscript(obj) {
   if (!obj || typeof obj !== 'object') return null;
-
-  // לעיתים תגיע עטיפה פנימית
   const core = obj.output || obj.result || obj.data || obj;
-
-  // ייתכן שמגיע כמחרוזת ישירה
   if (typeof core === 'string') return { text: core };
-
-  // השדות השכיחים
-  const text =
-    core?.text ??
-    core?.transcription ??
-    core?.transcript ??
-    core?.output ??
-    core?.result;
-
-  if (typeof text === 'string' && text.trim()) {
-    return {
-      text: text.trim(),
-      segments: core?.segments
-    };
-  }
-
-  // לעיתים מגיע מבנה כמו { text: { content: "..." } }
-  const nestedText = core?.text?.content || core?.transcription?.content;
-  if (typeof nestedText === 'string' && nestedText.trim()) {
-    return {
-      text: nestedText.trim(),
-      segments: core?.segments
-    };
-  }
-
+  const text = core?.text ?? core?.transcription ?? core?.transcript ?? core?.output ?? core?.result;
+  if (typeof text === 'string' && text.trim()) return { text: text.trim(), segments: core?.segments };
+  const nested = core?.text?.content || core?.transcription?.content;
+  if (typeof nested === 'string' && nested.trim()) return { text: nested.trim(), segments: core?.segments };
   return null;
 }
