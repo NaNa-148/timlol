@@ -57,3 +57,34 @@ const storage = {
         }
     }
 };
+// שמירת נתוני ivrit.ai
+    saveIvritAiCredentials(runpodApiKey, endpointId, workerUrl) {
+        try {
+            const credentials = { runpodApiKey, endpointId, workerUrl };
+            localStorage.setItem('hebrew_transcription_ivrit_credentials', JSON.stringify(credentials));
+        } catch (error) {
+            console.warn('Could not save ivrit.ai credentials:', error);
+        }
+    },
+
+    // טעינת נתוני ivrit.ai
+    loadIvritAiCredentials() {
+        try {
+            const saved = localStorage.getItem('hebrew_transcription_ivrit_credentials');
+            if (saved) {
+                const credentials = JSON.parse(saved);
+                const runpodApiKeyInput = document.getElementById('runpodApiKey');
+                const endpointIdInput = document.getElementById('endpointId');
+                const workerUrlInput = document.getElementById('workerUrl');
+                
+                if (runpodApiKeyInput) runpodApiKeyInput.value = credentials.runpodApiKey || '';
+                if (endpointIdInput) endpointIdInput.value = credentials.endpointId || '';
+                if (workerUrlInput) workerUrlInput.value = credentials.workerUrl || '';
+                
+                return true;
+            }
+        } catch (error) {
+            console.warn('Could not load ivrit.ai credentials:', error);
+        }
+        return false;
+    }
