@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>תמלול עברית AI - Hebrew Audio Transcription</title>
     <meta name="description" content="תמלול אודיו לטקסט בעברית באמצעות בינה מלאכותית">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="styles/main.css">
 </head>
 <body>
     <div class="container">
@@ -28,7 +28,7 @@
             </div>
 
             <div class="option-group">
-                <label class="option-label">🌍 שפת תמלול</label>
+                <label class="option-label">🌐 שפת תמלול</label>
                 <select id="languageSelect" class="api-input" style="padding: 12px;">
                     <option value="auto">זיהוי אוטומטי</option>
                     <option value="he" selected>עברית</option>
@@ -109,7 +109,7 @@
             <div class="option-group">
                 <label class="option-label">📝 הגדרות תמלול</label>
                 
-                 <div class="option-row">
+                <div class="option-row">
                     <span>חותמות זמן</span>
                     <div class="toggle" id="timestampToggle"></div>
                 </div>
@@ -144,8 +144,8 @@
                     <button class="button download-button vtt" id="downloadVttButton">הורד כ-VTT</button>
                 </div>
             </div>
-             <div class="result-actions" style="margin-top: 15px; justify-content: flex-end;">
-                 <select id="improveModelSelect" class="api-input" style="width: auto; margin-bottom: 0;">
+            <div class="result-actions" style="margin-top: 15px; justify-content: flex-end;">
+                <select id="improveModelSelect" class="api-input" style="width: auto; margin-bottom: 0;">
                     <option value="gpt-4o" selected>GPT-4o</option>
                     <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
                 </select>
@@ -160,6 +160,16 @@
         <button id="resetButton" class="reset-button">איפוס מלא</button>
     </div>
 
-    <script src="script.js"></script>
+    <!-- Load scripts -->
+    <script src="scripts/storage.js"></script>
+    <script src="scripts/audio-processor.js"></script>
+    <script src="scripts/waveform.js"></script>
+    <script src="scripts/ui-helpers.js"></script>
+    <script src="scripts/file-handler.js"></script>
+    <script src="scripts/transcription.js"></script>
+    <script src="scripts/text-improvement.js"></script>
+    <script src="scripts/export-download.js"></script>
+    <script src="scripts/event-listeners.js"></script>
+    <script src="scripts/main.js"></script>
 </body>
 </html>
