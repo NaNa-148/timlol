@@ -55,9 +55,9 @@ const storage = {
             console.warn('Could not load settings:', error);
             return {};
         }
-    }
-};
-// שמירת נתוני ivrit.ai
+    },
+
+    // שמירת נתוני ivrit.ai
     saveIvritAiCredentials(runpodApiKey, endpointId, workerUrl) {
         try {
             const credentials = { runpodApiKey, endpointId, workerUrl };
@@ -88,3 +88,4 @@ const storage = {
         }
         return false;
     }
+};
