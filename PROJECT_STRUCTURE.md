@@ -1,23 +1,25 @@
 # 📂 מבנה פרויקט תמלול עברית AI
 
 ## 🎯 מטרת המסמך
-מסמך זה מפרט את המבנה המלא של אפליקציית תמלול עברית AI, כולל תיאור מפורט של כל קובץ, הפונקציות שבו, והקשרים בין הרכיבים השונים.
+מסמך זה מפרט את המבנה המלא של אפליקציית תמלול עברית AI, כולל תיאור מפורט של כל קובץ, הפונקציות שבו, והקשרים בין הרכיבים השונים. האפליקציה תומכת כעת בשני שירותי תמלול: OpenAI Whisper ו-ivrit.ai.
 
 ## 📁 מבנה התיקיות
 ```
 hebrew-transcription-ai/
 ├── index.html                    # הקובץ הראשי
 ├── PROJECT_STRUCTURE.md          # המסמך הזה
+├── LICENSE                       # רישיון Apache 2.0
 ├── README.md                     # הוראות הפעלה
 ├── styles/
 │   └── main.css                  # עיצוב ראשי
 └── scripts/
     ├── storage.js                # ניהול זיכרון מקומי
-    ├── audio-processor.js        # עיבוד אודיו
-    ├── waveform.js              # ויזואליזציה של גלים
+    ├── audio-processor.js        # עיבוד אודיו מתקדם
+    ├── waveform.js              # ויזואליזציה של גלי אודיו
     ├── ui-helpers.js            # פונקציות עזר לממשק
-    ├── file-handler.js          # טיפול בקבצים
-    ├── transcription.js         # תמלול OpenAI
+    ├── file-handler.js          # טיפול בקבצי אודיו
+    ├── transcription.js         # תמלול OpenAI + בחירת שירות
+    ├── ivrit-transcription.js   # תמלול ivrit.ai
     ├── text-improvement.js      # שיפור טקסט AI
     ├── export-download.js       # ייצוא והורדה
     ├── event-listeners.js       # מאזינים לאירועים
@@ -34,12 +36,19 @@ hebrew-transcription-ai/
 **📋 מכיל:**
 - מבנה HTML של כל הדף
 - אלמנטי ממשק המשתמש (טפסים, כפתורים, אזורי תוצאות)
+- בחירת שירות תמלול (OpenAI / ivrit.ai)
 - טעינת קבצי CSS ו-JavaScript
 - אלמנטי נגישות ו-SEO בעברית
 
 **🔧 אלמנטים עיקריים:**
-- `#apiKey` - שדה מפתח API
-- `#languageSelect` - בחירת שפה
+- `#transcriptionService` - בחירת שירות תמלול
+- `#openAiGroup` - אזור הגדרות OpenAI
+- `#ivritAiGroup` - אזור הגדרות ivrit.ai
+- `#apiKey` - מפתח OpenAI API
+- `#runpodApiKey` - מפתח RunPod API
+- `#endpointId` - Endpoint ID של ivrit.ai
+- `#workerUrl` - כתובת Cloudflare Worker
+- `#languageSelect` - בחירת שפה (רק לOpenAI)
 - `#uploadArea` - אזור העלאת קבצים
 - `#audioPlayer` - נגן אודיו
 - `#waveformCanvas` - Canvas לצורת גל
@@ -56,6 +65,7 @@ hebrew-transcription-ai/
 - אנימציות ומעברים
 - עיצוב רספונסיבי
 - סגנונות כפתורים ופקדים
+- עיצוב אזורי הגדרות שירותי התמלול
 
 **🎨 קטגוריות עיצוב:**
 ```css
@@ -88,15 +98,18 @@ body, .container, .header
 **🔧 פונקציות:**
 | פונקציה | תיאור | פרמטרים | החזרה |
 |---------|--------|----------|--------|
-| `saveApiKey(key)` | שמירת מפתח API | string | void |
-| `loadApiKey()` | טעינת מפתח API | none | boolean |
-| `clearApiKey()` | מחיקת מפתח API | none | void |
-| `saveSettings(settings)` | שמירת הגדרות | object | void |
-| `loadSettings()` | טעינת הגדרות | none | object |
+| `saveApiKey(key)` | שמירת מפתח OpenAI API | string | void |
+| `loadApiKey()` | טעינת מפתח OpenAI API | none | boolean |
+| `clearApiKey()` | מחיקת מפתח OpenAI API | none | void |
+| `saveIvritAiCredentials(runpodApiKey, endpointId, workerUrl)` | שמירת נתוני ivrit.ai | string, string, string | void |
+| `loadIvritAiCredentials()` | טעינת נתוני ivrit.ai | none | boolean |
+| `saveSettings(settings)` | שמירת הגדרות כלליות | object | void |
+| `loadSettings()` | טעינת הגדרות כלליות | none | object |
 
 **📊 נתונים נשמרים:**
 - `hebrew_transcription_api_key` - מפתח OpenAI
-- `hebrew_transcription_settings` - הגדרות משתמש
+- `hebrew_transcription_ivrit_credentials` - נתוני חיבור לivrit.ai
+- `hebrew_transcription_settings` - הגדרות משתמש כלליות
 
 ---
 
@@ -147,7 +160,7 @@ body, .container, .header
 **🔧 פונקציות עיקריות:**
 | פונקציה | תיאור | פרמטרים | החזרה |
 |---------|--------|----------|--------|
-| `checkButtonsState()` | בדיקת מצב כפתורים | none | void |
+| `checkButtonsState()` | בדיקת מצב כפתורים (תומך בשני השירותים) | none | void |
 | `formatFileSize(bytes)` | פורמט גודל קובץ | number | string |
 | `showStatus(message, type)` | הצגת הודעת סטטוס | string, string | void |
 | `hideStatus()` | הסתרת הודעות | none | void |
@@ -181,23 +194,27 @@ body, .container, .header
 **🎵 פורמטים נתמכים:**
 - **אודיו:** MP3, WAV, M4A, FLAC, WEBM
 - **וידאו:** MP4, WEBM (חילוץ אודיו)
-- **מגבלות:** עד 25MB (מגבלת OpenAI)
+- **מגבלות:** עד 25MB (OpenAI), עד 100MB (ivrit.ai)
 
 ---
 
-### 8. **scripts/transcription.js** - תמלול עם OpenAI API
+### 8. **scripts/transcription.js** - תמלול OpenAI + בחירת שירות
 **📍 מיקום:** `/scripts/transcription.js`  
-**🎯 תפקיד:** תמלול אודיו באמצעות Whisper API  
+**🎯 תפקיד:** תמלול אודיו וניהול שירותי התמלול  
 **📋 משתנה גלובלי:** `transcriptResult`
 
 **🔧 פונקציות:**
 | פונקציה | תיאור | פרמטרים | החזרה |
 |---------|--------|----------|--------|
-| `performTranscription(file, apiKey)` | ביצוע תמלול מלא | File, string | void |
+| `selectTranscriptionService(file, apiKey)` | בחירת שירות התמלול וניתוב | File, string | void |
+| `performTranscription(file, apiKey)` | ביצוע תמלול OpenAI | File, string | void |
 | `displayResults()` | הצגת תוצאות תמלול | none | void |
 | `generateVTTContent()` | יצירת תוכן VTT | none | string |
 
-**🌐 שפות נתמכות:** 20+ שפות + זיהוי אוטומטי
+**🌐 שירותי תמלול:**
+- **OpenAI Whisper:** 20+ שפות + זיהוי אוטומטי
+- **ivrit.ai:** מומחה לעברית
+
 **⚙️ אפשרויות תמלול:**
 - חותמות זמן (timestamps)
 - זיהוי דוברים (speakers)
@@ -205,7 +222,31 @@ body, .container, .header
 
 ---
 
-### 9. **scripts/text-improvement.js** - שיפור טקסט באמצעות AI
+### 9. **scripts/ivrit-transcription.js** - תמלול ivrit.ai
+**📍 מיקום:** `/scripts/ivrit-transcription.js`  
+**🎯 תפקיד:** תמלול אודיו באמצעות ivrit.ai  
+
+**🔧 פונקציות:**
+| פונקציה | תיאור | פרמטרים | החזרה |
+|---------|--------|----------|--------|
+| `performIvritTranscription(file, runpodApiKey, endpointId, workerUrl)` | תמלול עם ivrit.ai | File, string, string, string | void |
+| `checkIvritAiStatus(workerUrl)` | בדיקת זמינות שרת | string | boolean |
+
+**🚀 דרישות ivrit.ai:**
+- RunPod API Key
+- Endpoint ID
+- כתובת Cloudflare Worker
+- תמיכה בקבצים עד 100MB
+
+**🔄 זרימת עבודה:**
+1. שליחה לשרת Cloudflare Worker
+2. Worker מעביר ל-RunPod עם פרטי האימות
+3. RunPod מעבד עם מודל ivrit.ai
+4. התשובה חוזרת דרך Worker
+
+---
+
+### 10. **scripts/text-improvement.js** - שיפור טקסט באמצעות AI
 **📍 מיקום:** `/scripts/text-improvement.js`  
 **🎯 תפקיד:** שיפור וחידוד הטקסט המתומלל  
 **📋 משתנה גלובלי:** `improvedResult`
@@ -229,7 +270,7 @@ body, .container, .header
 
 ---
 
-### 10. **scripts/export-download.js** - ייצוא והורדת קבצים
+### 11. **scripts/export-download.js** - ייצוא והורדת קבצים
 **📍 מיקום:** `/scripts/export-download.js`  
 **🎯 תפקיד:** הורדת תוצאות בפורמטים שונים  
 
@@ -250,7 +291,7 @@ body, .container, .header
 
 ---
 
-### 11. **scripts/event-listeners.js** - מאזינים לאירועי דף
+### 12. **scripts/event-listeners.js** - מאזינים לאירועי דף
 **📍 מיקום:** `/scripts/event-listeners.js`  
 **🎯 תפקיד:** הגדרת כל המאזינים לאירועים  
 
@@ -258,7 +299,7 @@ body, .container, .header
 | פונקציה | תיאור | מאזין ל |
 |---------|--------|---------|
 | `setupEventListeners()` | הגדרת כל המאזינים | כל האירועים |
-| `setupApiKeyListeners()` | מאזינים למפתח API | input, blur |
+| `setupApiKeyListeners()` | מאזינים למפתחות API ושירותים | input, blur, change |
 | `setupAudioProcessingListeners()` | מאזינים לעיבוד אודיו | click |
 | `setupTranscriptionListeners()` | מאזינים לתמלול | click |
 | `setupUIControls()` | מאזינים לפקדי ממשק | toggles, sliders |
@@ -267,13 +308,13 @@ body, .container, .header
 **⚡ סוגי אירועים:**
 - `input` - הזנת טקסט
 - `click` - לחיצות כפתורים
-- `change` - שינוי בחירות
+- `change` - שינוי בחירות (כולל שירות תמלול)
 - `dragover/drop` - גרירה ושחרור קבצים
 - `blur` - יציאה משדה
 
 ---
 
-### 12. **scripts/main.js** - הקובץ הראשי לאתחול
+### 13. **scripts/main.js** - הקובץ הראשי לאתחול
 **📍 מיקום:** `/scripts/main.js`  
 **🎯 תפקיד:** אתחול ואיפוס המערכת  
 
@@ -285,6 +326,7 @@ body, .container, .header
 | `initApp()` | אתחול האפליקציה | none | void |
 
 **🎛️ ברירות מחדל:**
+- שירות תמלול: OpenAI Whisper
 - שפה: עברית
 - מסנן רעש: פעיל (30%)
 - נרמול קול: פעיל (100%)
@@ -307,30 +349,36 @@ graph TD
     E --> F[scripts/file-handler.js]
     E --> G[scripts/audio-processor.js]
     E --> H[scripts/transcription.js]
-    E --> I[scripts/text-improvement.js]
-    E --> J[scripts/export-download.js]
+    E --> I[scripts/ivrit-transcription.js]
+    E --> J[scripts/text-improvement.js]
+    E --> K[scripts/export-download.js]
     
-    F --> K[scripts/ui-helpers.js]
-    F --> L[scripts/waveform.js]
+    F --> L[scripts/ui-helpers.js]
+    F --> M[scripts/waveform.js]
     
-    G --> L
-    H --> K
-    I --> K
-    J --> K
+    G --> M
+    H --> L
+    H --> I
+    I --> L
+    J --> L
+    K --> L
     
-    K --> D
-    L --> G
+    L --> D
+    M --> G
 ```
 
 ---
 
 ## 🚀 איך להוסיף פונקציונליות חדשה?
 
-### 📁 הוספת קובץ חדש:
-1. **יצירת הקובץ** ב-`scripts/` עם שם תיאורי
-2. **הוספת script tag** ל-`index.html` לפני `main.js`
-3. **יצירת פונקציות** עם naming convention עקבי
-4. **קריאה לפונקציות** מ-`event-listeners.js` או `main.js`
+### 📁 הוספת שירות תמלול חדש:
+1. **יצירת קובץ חדש** ב-`scripts/` (לדוגמה: `google-transcription.js`)
+2. **הוספת אופציה** ל-`#transcriptionService` ב-`index.html`
+3. **הוספת שדות הגדרות** לשירות החדש (אם נדרש)
+4. **עדכון** `selectTranscriptionService()` ב-`transcription.js`
+5. **הוספת פונקציות שמירה/טעינה** ב-`storage.js`
+6. **עדכון** `checkButtonsState()` ב-`ui-helpers.js`
+7. **הוספת מאזינים** ב-`event-listeners.js`
 
 ### 🔧 הוספת פונקציה לקובץ קיים:
 1. **בחירת הקובץ המתאים** לפי התמחות
@@ -350,13 +398,15 @@ graph TD
 
 | רוצה להוסיף... | לך ל... |
 |----------------|---------|
+| שירות תמלול חדש | צור קובץ JavaScript חדש + עדכן `transcription.js` |
 | כפתור חדש | `index.html` + `styles/main.css` + `event-listeners.js` |
 | פיצ'ר עיבוד אודיו | `audio-processor.js` |
 | אפשרות ייצוא חדשה | `export-download.js` |
 | הודעת שגיאה | `ui-helpers.js` - `showStatus()` |
 | שמירת הגדרה | `storage.js` |
 | ויזואליזציה חדשה | `waveform.js` |
-| תיקון באג תמלול | `transcription.js` |
+| תיקון באג תמלול OpenAI | `transcription.js` |
+| תיקון באג תמלול ivrit.ai | `ivrit-transcription.js` |
 | שיפור עיצוב | `styles/main.css` |
 | אתחול פונקציה חדשה | `main.js` - `initApp()` |
 
@@ -369,12 +419,29 @@ graph TD
 - הוספת תיעוד לפונקציות חדשות
 - שמירה על קוד נקי ומסודר
 - בדיקת תאימות לעברית ו-RTL
+- בדיקת עבודה עם שני שירותי התמלול
 
 ### ❌ לא מומלץ:
 - ערבוב קוד בין קבצים שונים
 - שימוש במשתנים גלובליים מיותרים
 - שכתוב פונקציות קיימות ללא צורך
 - הוספת dependencies חיצוניים
+- חשיפת מפתחות API בקוד הלקוח
+
+---
+
+## 🔒 אבטחה ופרטיות
+
+### OpenAI:
+- מפתח API נשמר מקומית בלבד
+- תקשורת מוצפנת עם HTTPS
+- ללא שמירת קבצים בשרת OpenAI
+
+### ivrit.ai:
+- נתוני חיבור נשמרים מקומית בלבד
+- שרת Cloudflare Worker כשכבת ביטחון
+- מפתח RunPod לא נחשף לדפדפן המשתמש
+- עיבוד אודיו בשרת פרטי (RunPod)
 
 ---
 
@@ -385,6 +452,9 @@ graph TD
 | 2025-01-XX | 1.0 | יצירת מבנה הפרויקט המחולק |
 | | | הוספת תיעוד מפורט |
 | | | יצירת מדריך הוספת פונקציונליות |
+| 2025-01-XX | 1.1 | הוספת תמיכה בivrit.ai |
+| | | בחירה דינמית בין שירותי תמלול |
+| | | שמירת נתוני חיבור לשירותים שונים |
 
 ---
 
