@@ -54,6 +54,8 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .reset-button { position: fixed; bottom: 20px; left: 20px; background: none; border: none; color: #666; cursor: pointer; font-size: 0.9rem; text-decoration: underline; padding: 5px; font-family: inherit; }
         .hidden { display: none !important; }
+        .progress-bar { width: 100%; height: 8px; background: #f0f0f0; border-radius: 4px; overflow: hidden; margin-bottom: 20px; display: none; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); border-radius: 4px; width: 0%; transition: width 0.3s ease; }
     </style>
 </head>
 <body>
@@ -148,6 +150,7 @@
         </div>
 
         <button class="button transcribe-button" id="transcribeButton" disabled>התחל תמלול</button>
+        <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
         <div class="loading-spinner" id="loadingSpinner"></div>
         <div class="status" id="status"></div>
 
@@ -160,14 +163,24 @@
                     <button class="button download-button vtt" id="downloadVttButton">הורד כ-VTT</button>
                 </div>
             </div>
+            <div class="result-actions" style="margin-top: 15px; justify-content: flex-end;">
+                 <select id="improveModelSelect" class="api-input" style="width: auto; margin-bottom: 0;">
+                    <option value="gpt-4o" selected>GPT-4o</option>
+                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                </select>
+                <button class="button process-button" id="improveButton" style="display: none;">🔧 תיקון אוטומטי</button>
+            </div>
             <div class="transcript-text" id="transcriptText" contenteditable="true" style="margin-top: 15px;"></div>
+            <div class="transcript-text" id="improvedText" contenteditable="true" style="display: none; margin-top: 15px; border-right-color: #28a745;">
+                <div style="font-weight: bold; margin-bottom: 10px; color: #28a745;">✨ טקסט מתוקן:</div>
+            </div>
         </div>
 
         <button id="resetButton" class="reset-button">איפוס</button>
     </div>
 
     <script>
-        let selectedFile = null, processedFile = null, transcriptResult = null, audioContext = null;
+        let selectedFile = null, processedFile = null, transcriptResult = null, improvedResult = '', audioContext = null, progressInterval = null;
 
         const elements = {
             serviceSelector: document.getElementById('serviceSelector'),
@@ -187,10 +200,15 @@
             waveformCanvas: document.getElementById('waveformCanvas'),
             processButton: document.getElementById('processButton'),
             transcribeButton: document.getElementById('transcribeButton'),
+            progressBar: document.getElementById('progressBar'),
+            progressFill: document.getElementById('progressFill'),
             loadingSpinner: document.getElementById('loadingSpinner'),
             status: document.getElementById('status'),
             resultArea: document.getElementById('resultArea'),
             transcriptText: document.getElementById('transcriptText'),
+            improvedText: document.getElementById('improvedText'),
+            improveButton: document.getElementById('improveButton'),
+            improveModelSelect: document.getElementById('improveModelSelect'),
             downloadTxtButton: document.getElementById('downloadTxtButton'),
             downloadVttButton: document.getElementById('downloadVttButton'),
             copyButton: document.getElementById('copyButton'),
@@ -235,6 +253,29 @@
             elements.status.textContent = message;
             elements.status.style.display = 'block';
         }
+
+        function simulateProgress(start, end, duration) {
+            if (progressInterval) clearInterval(progressInterval);
+            let current = start;
+            elements.progressFill.style.width = `${start}%`;
+            const stepTime = 50;
+            const steps = duration / stepTime;
+            const increment = (end - start) / steps;
+            progressInterval = setInterval(() => {
+                current += increment;
+                if (current >= end) { current = end; clearInterval(progressInterval); }
+                elements.progressFill.style.width = `${current}%`;
+            }, stepTime);
+        }
+
+        function finalizeProgress() {
+            if (progressInterval) clearInterval(progressInterval);
+            elements.progressFill.style.width = `100%`;
+            setTimeout(() => {
+                elements.progressBar.style.display = 'none';
+                elements.progressFill.style.width = `0%`;
+            }, 500);
+        }
         
         function resetApp() {
             if (!confirm('האם לאפס את האפליקציה?')) return;
@@ -254,45 +295,31 @@
             const canvas = elements.waveformCanvas;
             if (!canvas) return;
             const ctx = canvas.getContext('2d');
-            
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = '#667eea';
             ctx.font = '14px Arial';
             ctx.textAlign = 'center';
             ctx.fillText('טוען צורת גל...', canvas.width / 2, canvas.height / 2);
-            
-            file.arrayBuffer().then(arrayBuffer => {
-                if (audioContext) {
-                    return audioContext.decodeAudioData(arrayBuffer);
-                }
-                return Promise.reject('No audio context');
-            }).then(audioBuffer => {
-                drawAudioWaveform(ctx, canvas, audioBuffer);
-            }).catch(error => {
-                console.warn('Could not draw waveform:', error);
-            });
+            file.arrayBuffer().then(arrayBuffer => audioContext.decodeAudioData(arrayBuffer))
+            .then(audioBuffer => drawAudioWaveform(ctx, canvas, audioBuffer))
+            .catch(error => console.warn('Could not draw waveform:', error));
         }
 
         function drawAudioWaveform(ctx, canvas, audioBuffer) {
             const data = audioBuffer.getChannelData(0);
             const step = Math.ceil(data.length / canvas.width);
             const amp = canvas.height / 2;
-            
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.strokeStyle = '#667eea';
             ctx.lineWidth = 1;
             ctx.beginPath();
-            
             for (let i = 0; i < canvas.width; i++) {
-                let min = 1.0;
-                let max = -1.0;
-                
+                let min = 1.0, max = -1.0;
                 for (let j = 0; j < step; j++) {
                     const datum = data[(i * step) + j];
                     if (datum < min) min = datum;
                     if (datum > max) max = datum;
                 }
-                
                 ctx.moveTo(i, (1 + min) * amp);
                 ctx.lineTo(i, (1 + max) * amp);
             }
@@ -380,10 +407,7 @@
             
             const startJobBody = JSON.stringify({
                 input: {
-                    transcribe_args: { 
-                        blob: audio_base64, // Corrected from 'audio_base64' to 'blob'
-                        language: "he" 
-                    }
+                    transcribe_args: { blob: audio_base64, language: "he" }
                 }
             });
 
@@ -405,7 +429,7 @@
             showStatus(`המשימה (${jobId.substring(0,8)}) נשלחה. ממתין לתוצאות...`);
 
             let pollCount = 0;
-            const maxPolls = 60; // Poll for 5 minutes max (60 * 5s)
+            const maxPolls = 60;
             while (pollCount < maxPolls) {
                 await sleep(5000); 
                 const statusResponse = await fetch(elements.proxyUrl.value.trim(), {
@@ -422,7 +446,6 @@
                 if (statusResult.error) throw new Error(statusResult.error);
                 
                 if (statusResult.status === "COMPLETED") {
-                    console.log("Full response from RunPod:", statusResult); // Log the full response for debugging
                     return statusResult.output;
                 } else if (statusResult.status === "FAILED") {
                     throw new Error("התמלול נכשל בשרת");
@@ -434,46 +457,40 @@
         }
         
         function displayResults(resultData) {
-            transcriptResult = resultData; // Set global variable
-            console.log("Data passed to displayResults:", transcriptResult); // Log the data being displayed
-
-            // Intelligent check for transcription text format
-            let segments = null;
-            if (transcriptResult && transcriptResult.segments) {
-                segments = transcriptResult.segments;
-            } else if (transcriptResult && Array.isArray(transcriptResult)) {
-                // Handle cases where the output might be the segments array directly
-                segments = transcriptResult;
-            }
+            transcriptResult = resultData;
+            
+            let segments = transcriptResult?.segments || (Array.isArray(transcriptResult) ? transcriptResult : null);
 
             if (!segments) {
-                // Fallback if segments are not found, maybe the text is in a 'text' property or is the result itself
                 const fallbackText = transcriptResult?.text || (typeof transcriptResult === 'string' ? transcriptResult : "לא נמצא טקסט תמלול בתוצאה.");
                 elements.transcriptText.textContent = fallbackText;
-                elements.resultArea.style.display = 'block';
-                elements.resultArea.scrollIntoView({ behavior: 'smooth' });
-                return;
+            } else {
+                const showTimestamps = elements.timestampToggle.classList.contains('active');
+                const showParagraphs = elements.paragraphToggle.classList.contains('active');
+                const separator = showParagraphs ? '\n\n' : ' ';
+                let finalResult = segments
+                    .filter(segment => segment && typeof segment.text === 'string') // Ensure segment and text exist
+                    .map(segment => {
+                        let line = segment.text.trim();
+                        if (showTimestamps) line = `[${formatVttTime(segment.start).substring(0, 8)}] ${line}`;
+                        return line;
+                    }).join(separator);
+                elements.transcriptText.textContent = finalResult;
             }
 
-            const showTimestamps = elements.timestampToggle.classList.contains('active');
-            const showParagraphs = elements.paragraphToggle.classList.contains('active');
-            const separator = showParagraphs ? '\n\n' : ' ';
-            let finalResult = segments.map(segment => {
-                let line = segment.text.trim();
-                if (showTimestamps) line = `[${formatVttTime(segment.start).substring(0, 8)}] ${line}`;
-                return line;
-            }).join(separator);
-
-            elements.transcriptText.textContent = finalResult;
             elements.resultArea.style.display = 'block';
+            elements.improveButton.style.display = 'inline-block';
+            elements.improvedText.style.display = 'none';
             elements.resultArea.scrollIntoView({ behavior: 'smooth' });
         }
 
         function generateVTTContent() {
             if (!transcriptResult || !transcriptResult.segments) return '';
             let vttContent = "WEBVTT\n\n";
-            transcriptResult.segments.forEach(segment => {
-                vttContent += `${formatVttTime(segment.start)} --> ${formatVttTime(segment.end)}\n${segment.text.trim()}\n\n`;
+            transcriptResult.segments
+                .filter(segment => segment && typeof segment.text === 'string')
+                .forEach(segment => {
+                    vttContent += `${formatVttTime(segment.start)} --> ${formatVttTime(segment.end)}\n${segment.text.trim()}\n\n`;
             });
             return vttContent;
         }
@@ -541,11 +558,12 @@
                 elements.transcribeButton.disabled = true;
                 elements.loadingSpinner.style.display = 'block';
                 elements.resultArea.style.display = 'none';
+                elements.progressBar.style.display = 'block';
                 try {
                     showStatus('נשלח לתמלול...');
                     const service = elements.serviceSelector.value;
                     const resultData = service === 'openai' ? await performOpenAiTranscription() : await performIvritAiTranscription();
-                    displayResults(resultData); // Pass the result directly
+                    displayResults(resultData);
                     showStatus('התמלול הושלם בהצלחה! ✅', 'success');
                 } catch (error) {
                     console.error('Transcription error:', error);
@@ -553,6 +571,7 @@
                 } finally {
                     elements.transcribeButton.disabled = false;
                     elements.loadingSpinner.style.display = 'none';
+                    finalizeProgress();
                 }
             });
             
