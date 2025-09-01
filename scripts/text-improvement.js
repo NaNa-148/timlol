@@ -35,44 +35,6 @@ async function improveText(text, apiKey) {
     const result = await response.json();
     const improvedContent = result.choices[0]?.message?.content?.trim();
     
-    if (!improvedContent
-        // שיפור טקסט באמצעות GPT
-
-let improvedResult = '';
-
-// שיפור טקסט
-async function improveText(text, apiKey) {
-    const improveModelSelect = document.getElementById('improveModelSelect');
-    const selectedModel = improveModelSelect ? improveModelSelect.value : 'gpt-4o';
-    
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            model: selectedModel,
-            messages: [{
-                role: 'system',
-                content: 'אתה עורך טקסט מקצועי בעברית. המשימה שלך היא לתקן שגיאות הקדוק, כתיב, פיסוק ולהשלים מילים חסרות בטקסט שקיבלת מתמלול אודיו. שמור על המשמעות המקורית והתוכן, רק תקן שגיאות ותשפר את הקריאות. תקן גם מילים שנשמעו לא נכון או לא מובנות.'
-            }, {
-                role: 'user',
-                content: `אנא תקן ותשפר את הטקסט הבא מתמלול אודיו:\n\n${text}`
-            }],
-            max_tokens: 4000,
-            temperature: 0.2
-        })
-    });
-
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || `HTTP ${response.status}`);
-    }
-
-    const result = await response.json();
-    const improvedContent = result.choices[0]?.message?.content?.trim();
-    
     if (!improvedContent || improvedContent === text) {
         throw new Error('לא ניתן לשפר את הטקסט או שהוא כבר מושלם');
     }
