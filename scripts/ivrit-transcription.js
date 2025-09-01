@@ -1,10 +1,12 @@
 // תמלול באמצעות ivrit.ai
 
-// כתובת שרת המתווך
-const IVRIT_AI_PROXY_URL = 'https://ivrit-ai-proxy.rjnana148.workers.dev/';
-
 // תמלול עם ivrit.ai
-async function performIvritTranscription(file) {
+async function performIvritTranscription(file, runpodApiKey, endpointId, workerUrl) {
+    // בדיקת פרמטרים נדרשים
+    if (!runpodApiKey || !endpointId || !workerUrl) {
+        throw new Error('חסרים פרטי חיבור לivrit.ai - בדוק API Key, Endpoint ID וכתובת Worker');
+    }
+    
     showStatus('מעבד קובץ אודיו עבור ivrit.ai...');
     
     // בדיקת גודל קובץ (ivrit.ai עשוי להיות עם מגבלות שונות)
@@ -23,13 +25,25 @@ async function performIvritTranscription(file) {
     const formData = new FormData();
     formData.append('audio', fileToSend);
     
+    // הכנת payload לפי המבנה הנדרש של ivrit.ai
+    const payload = {
+        input: {
+            audio: fileToSend.name // או כל מבנה אחר שivrit.ai צריך
+        }
+    };
+    
     showStatus('שולח לתמלול ivrit.ai...');
     simulateProgress(5, 90, 60000); // תמלול עם ivrit.ai עשוי לקחת יותר זמן
     
     try {
-        const response = await fetch(IVRIT_AI_PROXY_URL, {
+        const response = await fetch(workerUrl, {
             method: 'POST',
-            body: formData
+            headers: {
+                'x-runpod-api-key': runpodApiKey,
+                'x-runpod-endpoint-id': endpointId,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
         });
 
         if (!response.ok) {
@@ -73,9 +87,13 @@ async function performIvritTranscription(file) {
 }
 
 // בדיקת זמינות שרת ivrit.ai
-async function checkIvritAiStatus() {
+async function checkIvritAiStatus(workerUrl) {
+    if (!workerUrl) return false;
+    
     try {
-        const response = await fetch(IVRIT_AI_PROXY_URL + 'health', {
+        // ניסיון פינג פשוט לworker
+        const testUrl = workerUrl.endsWith('/') ? workerUrl + 'health' : workerUrl + '/health';
+        const response = await fetch(testUrl, {
             method: 'GET',
             signal: AbortSignal.timeout(5000) // timeout של 5 שניות
         });
