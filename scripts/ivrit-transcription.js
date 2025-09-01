@@ -22,18 +22,12 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
         fileToSend = new File([file], `${originalName}_processed_${timestamp}.wav`, { type: 'audio/wav' });
     }
 
+    // הכנת FormData עם הקובץ
     const formData = new FormData();
     formData.append('audio', fileToSend);
     
-    // הכנת payload לפי המבנה הנדרש של ivrit.ai
-    const payload = {
-        input: {
-            audio: fileToSend.name // או כל מבנה אחר שivrit.ai צריך
-        }
-    };
-    
     showStatus('שולח לתמלול ivrit.ai...');
-    simulateProgress(5, 90, 60000); // תמלול עם ivrit.ai עשוי לקחת יותר זמן
+    simulateProgress(5, 90, 60000);
     
     try {
         const response = await fetch(workerUrl, {
@@ -41,9 +35,9 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
             headers: {
                 'x-runpod-api-key': runpodApiKey,
                 'x-runpod-endpoint-id': endpointId,
-                'Content-Type': 'application/json'
+                // לא שולחים Content-Type כי FormData מגדיר את זה אוטומטית
             },
-            body: JSON.stringify(payload)
+            body: formData  // שולחים את ה-FormData ישירות
         });
 
         if (!response.ok) {
