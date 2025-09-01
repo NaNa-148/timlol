@@ -47,6 +47,38 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
 
         const result = await response.json();
         
+        // DEBUG: בואו נראה מה השרת מחזיר
+        console.log('תשובה מivrit.ai:', result);
+        console.log('סוג התשובה:', typeof result);
+        console.log('מפתחות בתשובה:', Object.keys(result));
+        
+        // בדיקה של כל השדות האפשריים
+        const possibleTextFields = ['text', 'transcription', 'transcript', 'output', 'result'];
+        const foundTextField = possibleTextFields.find(field => result[field]);
+        
+        if (foundTextField) {
+            console.log(`נמצא טקסט בשדה: ${foundTextField}`, result[foundTextField]);
+        }
+        
+        // התאמה למבנה התשובה של ivrit.ai
+        if (!result.text && !result.transcription && !result.transcript && !result.output && !result.result) {
+            console.error('שגיאה: לא נמצא שדה טקסט בתשובה:', result);
+            throw new Error('לא התקבלה תוצאת תמלול מivrit.ai');
+        }
+
+        // יצירת אובייקט דומה לתוצאת OpenAI כדי לעבוד עם הקוד הקיים
+        const transcriptText = result.text || result.transcription || result.transcript || result.output || result.result;
+        transcriptResult = {
+            text: transcriptText,
+            segments: result.segments || [{
+                start: 0,
+                end: 0,
+                text: transcriptText
+            }]
+        };
+
+        displayResults();
+        
         // התאמה למבנה התשובה של ivrit.ai (צריך להתאים לפי התשובה האמיתית)
         if (!result.text && !result.transcription) {
             throw new Error('לא התקבלה תוצאת תמלול מivrit.ai');
