@@ -7,13 +7,30 @@ function checkButtonsState() {
     const apiKeyInput = document.getElementById('apiKey');
     const transcribeButton = document.getElementById('transcribeButton');
     const processButton = document.getElementById('processButton');
+    const transcriptionService = document.getElementById('transcriptionService');
     
-    if (!apiKeyInput || !transcribeButton || !processButton) return;
+    if (!transcribeButton || !processButton) return;
     
-    const apiKey = apiKeyInput.value.trim();
+    const selectedService = transcriptionService ? transcriptionService.value : 'openai';
     const hasFile = selectedFile || processedFile;
     
-    transcribeButton.disabled = !apiKey || !hasFile;
+    let canTranscribe = hasFile;
+    
+    if (selectedService === 'openai') {
+        const apiKey = apiKeyInput ? apiKeyInput.value.trim() : '';
+        canTranscribe = canTranscribe && apiKey;
+    } else if (selectedService === 'ivrit-ai') {
+        const runpodApiKey = document.getElementById('runpodApiKey');
+        const endpointId = document.getElementById('endpointId');
+        const workerUrl = document.getElementById('workerUrl');
+        
+        canTranscribe = canTranscribe && 
+            runpodApiKey && runpodApiKey.value.trim() &&
+            endpointId && endpointId.value.trim() &&
+            workerUrl && workerUrl.value.trim();
+    }
+    
+    transcribeButton.disabled = !canTranscribe;
     processButton.disabled = !selectedFile;
 }
 
