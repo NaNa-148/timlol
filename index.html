@@ -21,13 +21,36 @@
 
         <div class="options">
             <div class="option-group">
+                <label class="option-label">🤖 שירות תמלול</label>
+                <select id="transcriptionService" class="api-input" style="padding: 12px;">
+                    <option value="openai" selected>OpenAI Whisper</option>
+                    <option value="ivrit-ai">ivrit.ai (מומחה לעברית)</option>
+                </select>
+            </div>
+
+            <div class="option-group" id="openAiGroup">
                 <label class="option-label">🔑 מפתח OpenAI API</label>
                 <input type="password" id="apiKey" class="api-input" placeholder="sk-proj-..." 
                        autocomplete="off" spellcheck="false">
                 <small style="color: #666;">המפתח נשמר בזיכרון הדפדפן ולא נשלח לאף מקום אחר</small>
             </div>
 
-            <div class="option-group">
+            <div class="option-group" id="ivritAiGroup" style="display: none;">
+                <label class="option-label">🚀 הגדרות ivrit.ai</label>
+                
+                <input type="password" id="runpodApiKey" class="api-input" placeholder="RunPod API Key" 
+                       autocomplete="off" spellcheck="false">
+                
+                <input type="text" id="endpointId" class="api-input" placeholder="Endpoint ID (לדוגמה: p8ku15ov44l7vj)" 
+                       autocomplete="off" spellcheck="false">
+                
+                <input type="url" id="workerUrl" class="api-input" placeholder="כתובת Cloudflare Worker" 
+                       autocomplete="off" spellcheck="false">
+                
+                <small style="color: #666;">הנתונים נשמרים בדפדפן ולא נשלחים למקום אחר</small>
+            </div>
+
+            <div class="option-group" id="languageGroup">
                 <label class="option-label">🌐 שפת תמלול</label>
                 <select id="languageSelect" class="api-input" style="padding: 12px;">
                     <option value="auto">זיהוי אוטומטי</option>
