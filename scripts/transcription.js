@@ -2,6 +2,23 @@
 
 let transcriptResult = null;
 
+// בחירת שירות תמלול
+async function selectTranscriptionService(file, apiKey) {
+    const serviceSelect = document.getElementById('transcriptionService');
+    const selectedService = serviceSelect ? serviceSelect.value : 'openai';
+    
+    switch (selectedService) {
+        case 'ivrit-ai':
+            const runpodApiKey = document.getElementById('runpodApiKey').value.trim();
+            const endpointId = document.getElementById('endpointId').value.trim();
+            const workerUrl = document.getElementById('workerUrl').value.trim();
+            return await performIvritTranscription(file, runpodApiKey, endpointId, workerUrl);
+        case 'openai':
+        default:
+            return await performTranscription(file, apiKey);
+    }
+}
+
 // ביצוע תמלול
 async function performTranscription(file, apiKey) {
     showStatus('מעבד קובץ אודיו...');
