@@ -19,7 +19,7 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
   }
 
   const transcribeArgs = {
-    audio_base64: base64,              // בלי ה-prefix של data:
+    blob: base64,              // בלי ה-prefix של data:
     filename: safeName,
     mime_type: file.type || 'audio/wav',
     language: 'he',
