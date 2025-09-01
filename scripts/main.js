@@ -112,6 +112,9 @@ function initApp() {
     try {
         // טעינת מפתח API שמור
         storage.loadApiKey();
+
+        // טעינת נתוני ivrit.ai
+        storage.loadIvritAiCredentials();
         
         // איפוס הגדרות לברירת מחדל
         resetSettingsToDefault();
