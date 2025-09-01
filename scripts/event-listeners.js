@@ -26,23 +26,60 @@ function setupEventListeners() {
     setupResetButton();
 }
 
-// מאזינים למפתח API
+// מאזינים למפתחות API
 function setupApiKeyListeners() {
     const apiKeyInput = document.getElementById('apiKey');
-    if (!apiKeyInput) return;
+    const transcriptionService = document.getElementById('transcriptionService');
+    const openAiGroup = document.getElementById('openAiGroup');
+    const ivritAiGroup = document.getElementById('ivritAiGroup');
+    const languageGroup = document.getElementById('languageGroup');
     
-    apiKeyInput.addEventListener('input', (e) => {
-        const key = e.target.value.trim();
-        if (key && key.length > 10) {
-            storage.saveApiKey(key);
-        }
-        checkButtonsState();
-    });
+    // מאזין לשירות תמלול
+    if (transcriptionService) {
+        transcriptionService.addEventListener('change', () => {
+            const isOpenAI = transcriptionService.value === 'openai';
+            
+            if (openAiGroup) openAiGroup.style.display = isOpenAI ? 'block' : 'none';
+            if (ivritAiGroup) ivritAiGroup.style.display = isOpenAI ? 'none' : 'block';
+            if (languageGroup) languageGroup.style.display = isOpenAI ? 'block' : 'none';
+            
+            checkButtonsState();
+        });
+    }
+    
+    // מאזין למפתח OpenAI
+    if (apiKeyInput) {
+        apiKeyInput.addEventListener('input', (e) => {
+            const key = e.target.value.trim();
+            if (key && key.length > 10) {
+                storage.saveApiKey(key);
+            }
+            checkButtonsState();
+        });
 
-    apiKeyInput.addEventListener('blur', (e) => {
-        const key = e.target.value.trim();
-        if (key) {
-            storage.saveApiKey(key);
+        apiKeyInput.addEventListener('blur', (e) => {
+            const key = e.target.value.trim();
+            if (key) {
+                storage.saveApiKey(key);
+            }
+        });
+    }
+    
+    // מאזינים לשדות ivrit.ai
+    const ivritFields = ['runpodApiKey', 'endpointId', 'workerUrl'];
+    ivritFields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            field.addEventListener('input', () => {
+                const runpodApiKey = document.getElementById('runpodApiKey').value.trim();
+                const endpointId = document.getElementById('endpointId').value.trim();
+                const workerUrl = document.getElementById('workerUrl').value.trim();
+                
+                if (runpodApiKey && endpointId && workerUrl) {
+                    storage.saveIvritAiCredentials(runpodApiKey, endpointId, workerUrl);
+                }
+                checkButtonsState();
+            });
         }
     });
 }
@@ -107,8 +144,8 @@ function setupTranscriptionListeners() {
         const apiKeyInput = document.getElementById('apiKey');
         const apiKey = apiKeyInput ? apiKeyInput.value.trim() : '';
         
-        if (!fileToTranscribe || !apiKey) {
-            alert('אנא בחר קובץ והזן מפתח API');
+        if (!fileToTranscribe) {
+            alert('אנא בחר קובץ');
             return;
         }
 
@@ -122,7 +159,7 @@ function setupTranscriptionListeners() {
         if (resultArea) resultArea.style.display = 'none';
         
         try {
-            await performTranscription(fileToTranscribe, apiKey);
+            await selectTranscriptionService(fileToTranscribe, apiKey);
         } catch (error) {
             console.error('Transcription error:', error);
             showStatus('שגיאה: ' + error.message, 'error');
