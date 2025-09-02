@@ -6,6 +6,18 @@
     <title>תמלול עברית AI - Hebrew Audio Transcription</title>
     <meta name="description" content="תמלול אודיו לטקסט בעברית באמצעות בינה מלאכותית">
     <link rel="stylesheet" href="styles/main.css">
+    <style>
+        /* תיקון מיקום חלון הגדרות */
+        .settings-modal.active .settings-content {
+            position: fixed !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            margin: 0 !important;
+            max-height: 80vh !important;
+            overflow-y: auto !important;
+        }
+    </style>
 </head>
 <body>
     <!-- מסך כניסה עם סיסמה -->
@@ -261,6 +273,38 @@
     </div>
 
     <!-- Load scripts -->
+    <script>
+        // ביטול מוחלט של כל ההתראות - חייב להיות ראשון!
+        (function() {
+            // מחליף את window.alert
+            window.alert = function() { return false; };
+            
+            // מטפל בשגיאות
+            window.addEventListener('error', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                return true;
+            }, true);
+            
+            // מטפל בהבטחות שנכשלו
+            window.addEventListener('unhandledrejection', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                return true;
+            }, true);
+            
+            // משתיק console
+            if (typeof console !== 'undefined') {
+                const noop = function() {};
+                console.error = noop;
+                console.warn = noop;
+                console.log = noop;
+            }
+        })();
+    </script>
+    
     <script src="scripts/storage.js"></script>
     <script src="scripts/audio-processor.js"></script>
     <script src="scripts/waveform.js"></script>
@@ -449,17 +493,6 @@
             if (settingsButton && settingsModal) {
                 settingsButton.addEventListener('click', function() {
                     settingsModal.classList.add('active');
-                    
-                    // מרכוז החלון במרכז המסך (לא הדף)
-                    const modalContent = settingsModal.querySelector('.settings-content');
-                    if (modalContent) {
-                        // איפוס מיקום
-                        modalContent.style.position = 'fixed';
-                        modalContent.style.top = '50%';
-                        modalContent.style.left = '50%';
-                        modalContent.style.transform = 'translate(-50%, -50%)';
-                        modalContent.style.margin = '0';
-                    }
                 });
             }
             
