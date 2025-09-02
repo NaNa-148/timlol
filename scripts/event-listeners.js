@@ -1,4 +1,19 @@
-// הגדרת כל המאזינים לאירועי הדף
+// חדש - בדיקת סטטוס הגדרות
+function setupConfigurationCheck() {
+    // בדיקה ראשונית
+    checkConfigurationStatus();
+    
+    // הוספת מאזינים לשינויים בשדות
+    const fieldsToWatch = ['apiKey', 'runpodApiKey', 'endpointId', 'workerUrl'];
+    
+    fieldsToWatch.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            field.addEventListener('input', checkConfigurationStatus);
+            field.addEventListener('change', checkConfigurationStatus);
+        }
+    });
+}// הגדרת כל המאזינים לאירועי הדף
 
 function setupEventListeners() {
     // מפתח API
@@ -24,6 +39,9 @@ function setupEventListeners() {
     
     // איפוס
     setupResetButton();
+    
+    // חדש - בדיקת סיסמה
+    setupPasswordCheck();
     
     // חדש - קוביות בחירה
     setupServiceCards();
@@ -269,17 +287,8 @@ function setupSettingsModal() {
         settingsButton.addEventListener('click', () => {
             if (settingsModal) {
                 settingsModal.classList.add('active');
-                
-                // הצגת ההגדרות הנכונות בהתאם לשירות הנבחר
-                const transcriptionService = document.getElementById('transcriptionService');
-                const openAiSettings = document.getElementById('openAiSettings');
-                const ivritAiSettings = document.getElementById('ivritAiSettings');
-                
-                if (transcriptionService) {
-                    const isOpenAI = transcriptionService.value === 'openai';
-                    if (openAiSettings) openAiSettings.style.display = isOpenAI ? 'block' : 'none';
-                    if (ivritAiSettings) ivritAiSettings.style.display = isOpenAI ? 'none' : 'block';
-                }
+                // גלילה למעלה כדי שהמודל יהיה במרכז
+                window.scrollTo({ top: 0, behavior: 'smooth' });
             }
         });
     }
