@@ -146,6 +146,24 @@ async function safeJson(res){
 }
 function extractTranscript(obj){
   if (!obj || typeof obj!=='object') return null;
+  
+  // טיפול במבנה של ivrit.ai: output[0].result[array of segments]
+  if (Array.isArray(obj.output) && obj.output[0]?.result && Array.isArray(obj.output[0].result)) {
+    const segments = obj.output[0].result;
+    const fullText = segments.map(seg => seg.text?.trim()).filter(Boolean).join(' ');
+    if (fullText) {
+      return {
+        text: fullText,
+        segments: segments.map(seg => ({
+          start: seg.start || 0,
+          end: seg.end || 0,
+          text: seg.text?.trim() || ''
+        }))
+      };
+    }
+  }
+  
+  // טיפול רגיל למבנים אחרים
   const core = obj.output || obj.result || obj.data || obj;
   if (typeof core === 'string') return { text: core };
   const text = core?.text ?? core?.transcription ?? core?.transcript ?? core?.output ?? core?.result;
