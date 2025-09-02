@@ -1,5 +1,6 @@
 // /scripts/ivrit-transcription.js
 // שולח JSON (לא FormData) ל־Worker, כולל base64, Polling ותצוגת שגיאות ברורה.
+// ✅ תמיכה בקבצים גדולים דרך R2 Upload
 
 async function performIvritTranscription(file, runpodApiKey, endpointId, workerUrl) {
   if (!runpodApiKey || !endpointId || !workerUrl) {
@@ -8,27 +9,73 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
   if (!file) throw new Error('לא נבחר קובץ אודיו');
   if (file.size > 100 * 1024 * 1024) throw new Error('קובץ גדול מדי (מקס׳ 100MB)');
 
-  showStatus('ממיר אודיו ל-Base64…', 'processing');
-
   const safeName = (file.name || 'audio').replace(/[^\w.\-]+/g, '_');
-  const dataUrl = await fileToDataUrl(file);          // "data:audio/xxx;base64,AAAA..."
-  const base64 = stripDataUrlPrefix(dataUrl);         // "AAAA..." בלבד
-
-  if (!base64 || base64.length < 100) {
-    throw new Error('האודיו לא זוהה/ריק (base64 קצר מדי)');
+  
+  // בחירה אוטומטית: גדול מ-9MB → העלאה ל-R2, קטן → base64
+  const isLargeFile = file.size > 9 * 1024 * 1024;
+  
+  let transcribeArgs;
+  
+  if (isLargeFile) {
+    // קובץ גדול - העלאה ל-R2
+    showStatus('מעלה קובץ גדול לאחסון...', 'processing');
+    
+    try {
+      const uploadRes = await fetch(`${workerUrl}/upload?name=${encodeURIComponent(safeName)}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type || 'audio/wav'
+        },
+        body: file
+      });
+      
+      if (!uploadRes.ok) {
+        const errorText = await uploadRes.text().catch(() => '');
+        throw new Error(`העלאה נכשלה: ${uploadRes.status} - ${errorText}`);
+      }
+      
+      const uploadData = await uploadRes.json();
+      
+      if (!uploadData.success || !uploadData.url) {
+        throw new Error('העלאה נכשלה - לא התקבל URL תקין');
+      }
+      
+      // שימוש ב-URL במקום base64
+      transcribeArgs = {
+        url: uploadData.url,
+        filename: safeName,
+        mime_type: file.type || 'audio/wav',
+        language: 'he',
+        punctuate: true,
+        diarize: false
+      };
+      
+      showStatus('קובץ הועלה בהצלחה, מתחיל תמלול...', 'processing');
+      
+    } catch (error) {
+      throw new Error(`שגיאה בהעלאת הקובץ: ${error.message}`);
+    }
+    
+  } else {
+    // קובץ קטן - base64 כרגיל
+    showStatus('ממיר אודיו ל-Base64…', 'processing');
+    
+    const dataUrl = await fileToDataUrl(file);
+    const base64 = stripDataUrlPrefix(dataUrl);
+    
+    if (!base64 || base64.length < 100) {
+      throw new Error('האודיו לא זוהה/ריק (base64 קצר מדי)');
+    }
+    
+    transcribeArgs = {
+      blob: base64,
+      filename: safeName,
+      mime_type: file.type || 'audio/wav',
+      language: 'he',
+      punctuate: true,
+      diarize: false
+    };
   }
-
-  const transcribeArgs = {
-    blob: base64,              // בלי ה-prefix של data:
-    filename: safeName,
-    mime_type: file.type || 'audio/wav',
-    language: 'he',
-    punctuate: true,
-    diarize: false,
-    // optional:
-    // sample_rate: 44100,
-    // channels: 1,
-  };
 
   showStatus('שולח את המשימה ל-ivrit.ai…', 'processing');
   simulateProgress(5, 75, 60_000);
@@ -70,15 +117,14 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
     while (Date.now() < deadline) {
       await delay(2000);
 
-      // **תיקון: Polling בלי גוף בקשה, רק עם Headers**
+      // Polling בלי גוף בקשה, רק עם Headers
       const pollRes = await fetch(workerUrl, {
-        method: 'GET',  // שינוי ל-GET במקום POST
+        method: 'GET',
         headers: {
           'x-runpod-api-key': runpodApiKey,
           'x-runpod-endpoint-id': endpointId,
           'x-job-id': String(jobId),
         }
-        // **הוסרה השורה: body: JSON.stringify({})**
       });
 
       if (!pollRes.ok) {
@@ -131,6 +177,7 @@ function stripDataUrlPrefix(dataUrl) {
   const idx = dataUrl.indexOf('base64,');
   return idx >= 0 ? dataUrl.slice(idx + 7) : dataUrl;
 }
+
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -139,13 +186,23 @@ function fileToDataUrl(file) {
     r.readAsDataURL(file);
   });
 }
-function delay(ms){ return new Promise(res=>setTimeout(res,ms)); }
-async function safeJson(res){
-  try { return await res.json(); }
-  catch { const t=await res.text().catch(()=> ''); console.debug('Non-JSON:',t); throw new Error('תשובת השרת אינה JSON תקין'); }
+
+function delay(ms) { 
+  return new Promise(res => setTimeout(res, ms)); 
 }
-function extractTranscript(obj){
-  if (!obj || typeof obj!=='object') return null;
+
+async function safeJson(res) {
+  try { 
+    return await res.json(); 
+  } catch { 
+    const t = await res.text().catch(() => ''); 
+    console.debug('Non-JSON:', t); 
+    throw new Error('תשובת השרת אינה JSON תקין'); 
+  }
+}
+
+function extractTranscript(obj) {
+  if (!obj || typeof obj !== 'object') return null;
   
   // טיפול במבנה של ivrit.ai: output[0].result[array of segments]
   if (Array.isArray(obj.output) && obj.output[0]?.result && Array.isArray(obj.output[0].result)) {
@@ -167,8 +224,8 @@ function extractTranscript(obj){
   const core = obj.output || obj.result || obj.data || obj;
   if (typeof core === 'string') return { text: core };
   const text = core?.text ?? core?.transcription ?? core?.transcript ?? core?.output ?? core?.result;
-  if (typeof text==='string' && text.trim()) return { text: text.trim(), segments: core?.segments };
+  if (typeof text === 'string' && text.trim()) return { text: text.trim(), segments: core?.segments };
   const nested = core?.text?.content || core?.transcription?.content;
-  if (typeof nested==='string' && nested.trim()) return { text: nested.trim(), segments: core?.segments };
+  if (typeof nested === 'string' && nested.trim()) return { text: nested.trim(), segments: core?.segments };
   return null;
 }
