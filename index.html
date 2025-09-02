@@ -19,7 +19,7 @@
             ⚙️ הגדרות חיבור
         </button>
 
-        <div class="info-box" id="statusBox">
+        <div class="info-box not-ready" id="statusBox">
             <div class="info-text" id="statusText">⚠️ לא מוכן לשימוש</div>
             <div class="info-subtext" id="statusSubtext">יש להגדיר פרטי התחברות לפחות לאחד מהשירותים</div>
         </div>
@@ -64,6 +64,34 @@
             </div>
         </div>
 
+        <!-- בחירת שפה לOpenAI -->
+        <div class="language-selection" id="languageSelectionDiv" style="display: none;">
+            <label class="option-label">🌐 שפת תמלול</label>
+            <select id="languageSelect" class="api-input language-select">
+                <option value="auto">זיהוי אוטומטי</option>
+                <option value="he" selected>עברית</option>
+                <option value="en">English</option>
+                <option value="ar">العربية</option>
+                <option value="ru">Русский</option>
+                <option value="es">Español</option>
+                <option value="fr">Français</option>
+                <option value="de">Deutsch</option>
+                <option value="it">Italiano</option>
+                <option value="pt">Português</option>
+                <option value="zh">中文</option>
+                <option value="ja">日本語</option>
+                <option value="ko">한국어</option>
+                <option value="hi">हिन्दी</option>
+                <option value="tr">Türkçe</option>
+                <option value="pl">Polski</option>
+                <option value="nl">Nederlands</option>
+                <option value="sv">Svenska</option>
+                <option value="da">Dansk</option>
+                <option value="no">Norsk</option>
+                <option value="fi">Suomi</option>
+            </select>
+        </div>
+
         <!-- Select מוסתר לתאימות עם הקוד הקיים -->
         <select id="transcriptionService" style="display: none;">
             <option value="openai">OpenAI Whisper</option>
@@ -86,33 +114,6 @@
                         <input type="password" id="apiKey" class="api-input" placeholder="sk-proj-..." 
                                autocomplete="off" spellcheck="false">
                         <small style="color: #666;">המפתח נשמר בזיכרון הדפדפן ולא נשלח לאף מקום אחר</small>
-                    </div>
-                    
-                    <div class="option-group">
-                        <label class="option-label">🌐 שפת תמלול</label>
-                        <select id="languageSelect" class="api-input" style="padding: 12px;">
-                            <option value="auto">זיהוי אוטומטי</option>
-                            <option value="he" selected>עברית</option>
-                            <option value="en">English</option>
-                            <option value="ar">العربية</option>
-                            <option value="ru">Русский</option>
-                            <option value="es">Español</option>
-                            <option value="fr">Français</option>
-                            <option value="de">Deutsch</option>
-                            <option value="it">Italiano</option>
-                            <option value="pt">Português</option>
-                            <option value="zh">中文</option>
-                            <option value="ja">日本語</option>
-                            <option value="ko">한국어</option>
-                            <option value="hi">हिन्दी</option>
-                            <option value="tr">Türkçe</option>
-                            <option value="pl">Polski</option>
-                            <option value="nl">Nederlands</option>
-                            <option value="sv">Svenska</option>
-                            <option value="da">Dansk</option>
-                            <option value="no">Norsk</option>
-                            <option value="fi">Suomi</option>
-                        </select>
                     </div>
                 </div>
 
