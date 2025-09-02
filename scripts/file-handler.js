@@ -44,7 +44,7 @@ function handleFileSelect(file) {
         // בדיקת גודל קובץ
         if (file.size > 25 * 1024 * 1024) {
             const sizeMB = (file.size / 1024 / 1024).toFixed(1);
-            alert(`⚠️ הקובץ גדול (${sizeMB}MB) מהמגבלה של OpenAI (25MB).\n\nהמערכת תדחוס אותו אוטומטית בעיבוד האודיו.`);
+            alert(`⚠️ הקובץ גדול (${sizeMB}MB)\n\n📌 מגבלות:\n• OpenAI Whisper: עד 25MB בלבד\n• ivrit.ai: עד 300MB+ ✓\n\nלקבצים גדולים השתמש בivrit.ai.`);
         }
         
     } catch (error) {
