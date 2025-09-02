@@ -23,7 +23,12 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
     
     try {
       // שליחת הקובץ הבינארי ישירות ל-Worker
-      const uploadRes = await fetch(`${workerUrl}/upload?name=${encodeURIComponent(safeName)}`, {
+      // וודא שאין סלאש כפול
+const uploadUrl = workerUrl.endsWith('/') 
+  ? `${workerUrl}upload?name=${encodeURIComponent(safeName)}`
+  : `${workerUrl}/upload?name=${encodeURIComponent(safeName)}`;
+
+const uploadRes = await fetch(uploadUrl, {
         method: 'PUT',
         headers: {
           'Content-Type': file.type || 'audio/wav',
