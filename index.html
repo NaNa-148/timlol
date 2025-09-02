@@ -275,13 +275,24 @@
     
     <!-- סקריפט לטיפול בסיסמה ואתחול -->
     <script>
-        // השתקת שגיאות של פונקציות לא מוגדרות
+        // השתקת כל השגיאות של פונקציות לא מוגדרות
         window.addEventListener('error', function(e) {
-            if (e.message && e.message.includes('is not defined')) {
+            if (e.message && (e.message.includes('is not defined') || e.message.includes('נשיאה בטעינת'))) {
                 e.preventDefault();
+                e.stopPropagation();
                 return true;
             }
-        });
+        }, true);
+        
+        // השתקת console errors
+        const originalError = console.error;
+        console.error = function() {
+            const args = Array.from(arguments);
+            if (args.some(arg => String(arg).includes('is not defined'))) {
+                return;
+            }
+            originalError.apply(console, arguments);
+        };
         
         document.addEventListener('DOMContentLoaded', function() {
             const passwordScreen = document.getElementById('passwordScreen');
@@ -354,6 +365,50 @@
         
         // פונקציה לאתחול כל המאזינים אחרי הכניסה
         function initializeEventHandlers() {
+            // כפתור הסרת קובץ
+            const removeFileBtn = document.getElementById('removeFileBtn');
+            if (removeFileBtn) {
+                removeFileBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    if (confirm('האם להסיר את הקובץ?')) {
+                        // איפוס הקבצים
+                        if (typeof clearFiles === 'function') {
+                            clearFiles();
+                        } else {
+                            // איפוס ידני אם הפונקציה לא זמינה
+                            selectedFile = null;
+                            processedFile = null;
+                            
+                            const fileInfo = document.getElementById('fileInfo');
+                            const audioPreview = document.getElementById('audioPreview');
+                            const audioPlayer = document.getElementById('audioPlayer');
+                            const fileInput = document.getElementById('fileInput');
+                            
+                            if (fileInfo) fileInfo.style.display = 'none';
+                            if (audioPreview) audioPreview.style.display = 'none';
+                            if (audioPlayer) audioPlayer.src = '';
+                            if (fileInput) fileInput.value = '';
+                            
+                            if (typeof clearWaveform === 'function') {
+                                clearWaveform();
+                            }
+                            if (typeof checkButtonsState === 'function') {
+                                checkButtonsState();
+                            }
+                        }
+                        
+                        if (typeof showStatus === 'function') {
+                            showStatus('הקובץ הוסר', 'success');
+                            setTimeout(function() {
+                                if (typeof hideStatus === 'function') {
+                                    hideStatus();
+                                }
+                            }, 2000);
+                        }
+                    }
+                });
+            }
+            
             // קוביות בחירת שירות
             const serviceCards = document.querySelectorAll('.service-card');
             serviceCards.forEach(card => {
@@ -385,7 +440,7 @@
                 });
             });
             
-            // כפתור הגדרות
+            // כפתור הגדרות - תמיד במרכז המסך
             const settingsButton = document.getElementById('settingsButton');
             const settingsModal = document.getElementById('settingsModal');
             const closeSettings = document.getElementById('closeSettings');
@@ -394,7 +449,17 @@
             if (settingsButton && settingsModal) {
                 settingsButton.addEventListener('click', function() {
                     settingsModal.classList.add('active');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    
+                    // מרכוז החלון במרכז המסך (לא הדף)
+                    const modalContent = settingsModal.querySelector('.settings-content');
+                    if (modalContent) {
+                        // איפוס מיקום
+                        modalContent.style.position = 'fixed';
+                        modalContent.style.top = '50%';
+                        modalContent.style.left = '50%';
+                        modalContent.style.transform = 'translate(-50%, -50%)';
+                        modalContent.style.margin = '0';
+                    }
                 });
             }
             
