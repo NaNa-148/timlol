@@ -46,6 +46,7 @@ body {
     margin-bottom: 20px;
 }
 
+/* תיבת סטטוס ראשית */
 .info-box {
     border-radius: 10px;
     padding: 15px;
@@ -90,7 +91,34 @@ body {
     color: #721c24;
 }
 
-/* עיצוב קוביות בחירת שירות - חדש */
+/* כפתור הגדרות */
+.settings-button {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 20px auto 30px;
+    transition: all 0.3s ease;
+}
+
+.settings-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+}
+
+.settings-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* עיצוב קוביות בחירת שירות */
 .service-selection {
     margin-bottom: 30px;
 }
@@ -205,23 +233,6 @@ body {
     margin-right: 10px;
 }
 
-/* כפתור הגדרות - חדש */
-.settings-button {
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    color: white;
-    border: none;
-    padding: 12px 30px;
-    border-radius: 10px;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 20px auto 30px;
-    transition: all 0.3s ease;
-}
-
 /* סטטוס על הקוביות */
 .service-status {
     position: absolute;
@@ -256,17 +267,32 @@ body {
     display: none;
 }
 
-.settings-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+/* בחירת שפה */
+.language-selection {
+    background: rgba(102, 126, 234, 0.05);
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 20px;
 }
 
-.settings-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+.language-select {
+    width: 100%;
+    max-width: 300px;
+    padding: 12px;
+    border: 2px solid #667eea;
+    border-radius: 8px;
+    font-size: 1rem;
+    background: white;
+    cursor: pointer;
 }
 
-/* חלון הגדרות Modal - חדש */
+.language-select:focus {
+    outline: none;
+    border-color: #764ba2;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* חלון הגדרות Modal */
 .settings-modal {
     display: none;
     position: fixed;
@@ -355,44 +381,7 @@ body {
     gap: 8px;
 }
 
-/* כפתור X להסרת קובץ - חדש */
-.file-info {
-    background: rgba(40, 167, 69, 0.1);
-    border-radius: 10px;
-    padding: 15px;
-    margin-bottom: 20px;
-    display: none;
-    border-right: 4px solid #28a745;
-    position: relative;
-    padding-left: 40px;
-}
-
-.remove-file-btn {
-    position: absolute;
-    top: 50%;
-    left: 10px;
-    transform: translateY(-50%);
-    background: #ff4444;
-    color: white;
-    border: none;
-    width: 25px;
-    height: 25px;
-    border-radius: 50%;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    font-weight: bold;
-    transition: all 0.3s ease;
-}
-
-.remove-file-btn:hover {
-    background: #cc0000;
-    transform: translateY(-50%) scale(1.1);
-}
-
-/* המשך העיצוב הקיים */
+/* אזור העלאת קבצים */
 .upload-area {
     border: 3px dashed #667eea;
     border-radius: 15px;
@@ -439,6 +428,90 @@ body {
     display: none;
 }
 
+/* מידע על הקובץ עם כפתור X */
+.file-info {
+    background: rgba(40, 167, 69, 0.1);
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 20px;
+    display: none;
+    border-right: 4px solid #28a745;
+    position: relative;
+    padding-left: 40px;
+}
+
+.remove-file-btn {
+    position: absolute;
+    top: 50%;
+    left: 10px;
+    transform: translateY(-50%);
+    background: #ff4444;
+    color: white;
+    border: none;
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.remove-file-btn:hover {
+    background: #cc0000;
+    transform: translateY(-50%) scale(1.1);
+}
+
+.file-name {
+    font-weight: 600;
+    color: #28a745;
+    margin-bottom: 5px;
+}
+
+.file-size {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+/* נגן אודיו ותצוגה */
+.audio-preview {
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: 10px;
+    padding: 15px;
+    margin: 15px 0;
+    display: none;
+}
+
+.audio-controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.audio-player {
+    flex: 1;
+    height: 40px;
+}
+
+.canvas-container {
+    margin: 15px 0;
+    text-align: center;
+}
+
+.waveform-canvas {
+    width: 100%;
+    max-width: 600px;
+    height: 100px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #f8f9fa;
+}
+
+/* אזור אפשרויות */
 .options {
     background: rgba(102, 126, 234, 0.05);
     border-radius: 15px;
@@ -481,6 +554,7 @@ body {
     flex-wrap: wrap;
 }
 
+/* מתגים */
 .toggle {
     position: relative;
     width: 50px;
@@ -512,6 +586,7 @@ body {
     transform: translateX(25px);
 }
 
+/* סליידרים */
 .slider-container {
     display: flex;
     align-items: center;
@@ -570,51 +645,7 @@ body {
     color: #667eea;
 }
 
-.file-name {
-    font-weight: 600;
-    color: #28a745;
-    margin-bottom: 5px;
-}
-
-.file-size {
-    color: #666;
-    font-size: 0.9rem;
-}
-
-.audio-preview {
-    background: rgba(102, 126, 234, 0.1);
-    border-radius: 10px;
-    padding: 15px;
-    margin: 15px 0;
-    display: none;
-}
-
-.audio-controls {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    margin-bottom: 15px;
-}
-
-.audio-player {
-    flex: 1;
-    height: 40px;
-}
-
-.canvas-container {
-    margin: 15px 0;
-    text-align: center;
-}
-
-.waveform-canvas {
-    width: 100%;
-    max-width: 600px;
-    height: 100px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    background: #f8f9fa;
-}
-
+/* כפתורים */
 .button {
     border: none;
     border-radius: 8px;
@@ -698,6 +729,7 @@ body {
     box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
 }
 
+/* בר התקדמות */
 .progress-bar {
     width: 100%;
     height: 8px;
@@ -716,6 +748,7 @@ body {
     transition: width 0.3s ease;
 }
 
+/* אזור תוצאות */
 .result-area {
     background: white;
     border-radius: 15px;
@@ -762,6 +795,7 @@ body {
     font-family: 'Arial', sans-serif;
 }
 
+/* הודעות סטטוס */
 .status {
     text-align: center;
     margin: 20px 0;
@@ -781,6 +815,7 @@ body {
     color: #dc3545;
 }
 
+/* ספינר טעינה */
 .loading-spinner {
     width: 40px;
     height: 40px;
@@ -809,6 +844,7 @@ body {
     text-align: left;
 }
 
+/* כפתור איפוס */
 .reset-button {
     position: fixed;
     bottom: 20px;
@@ -823,6 +859,7 @@ body {
     font-family: inherit;
 }
 
+/* רספונסיב */
 @media (max-width: 768px) {
     .container {
         padding: 20px;
@@ -854,5 +891,13 @@ body {
     .settings-content {
         width: 95%;
         padding: 20px;
+    }
+    
+    .language-selection {
+        padding: 15px;
+    }
+    
+    .language-select {
+        max-width: 100%;
     }
 }
