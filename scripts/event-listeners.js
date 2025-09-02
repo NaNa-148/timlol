@@ -24,6 +24,15 @@ function setupEventListeners() {
     
     // איפוס
     setupResetButton();
+    
+    // חדש - קוביות בחירה
+    setupServiceCards();
+    
+    // חדש - חלון הגדרות
+    setupSettingsModal();
+    
+    // חדש - כפתור הסרת קובץ
+    setupRemoveFileButton();
 }
 
 // מאזינים למפתחות API
@@ -197,4 +206,150 @@ function setupResetButton() {
     if (!resetButton) return;
     
     resetButton.addEventListener('click', resetApp);
+}
+
+// חדש - מאזינים לקוביות בחירת שירות
+function setupServiceCards() {
+    const serviceCards = document.querySelectorAll('.service-card');
+    
+    serviceCards.forEach(card => {
+        card.addEventListener('click', function() {
+            // הסרת בחירה מכל הכרטיסים
+            serviceCards.forEach(c => c.classList.remove('selected'));
+            
+            // הוספת בחירה לכרטיס הנוכחי
+            this.classList.add('selected');
+            
+            // עדכון הערך בselect המוסתר
+            const service = this.dataset.service;
+            const transcriptionSelect = document.getElementById('transcriptionService');
+            if (transcriptionSelect) {
+                transcriptionSelect.value = service;
+                const event = new Event('change', { bubbles: true });
+                transcriptionSelect.dispatchEvent(event);
+            }
+            
+            // עדכון תצוגת ההגדרות במודל
+            const openAiSettings = document.getElementById('openAiSettings');
+            const ivritAiSettings = document.getElementById('ivritAiSettings');
+            
+            if (service === 'openai') {
+                if (openAiSettings) openAiSettings.style.display = 'block';
+                if (ivritAiSettings) ivritAiSettings.style.display = 'none';
+            } else {
+                if (openAiSettings) openAiSettings.style.display = 'none';
+                if (ivritAiSettings) ivritAiSettings.style.display = 'block';
+            }
+            
+            checkButtonsState();
+        });
+    });
+}
+
+// חדש - מאזינים לחלון הגדרות
+function setupSettingsModal() {
+    const settingsButton = document.getElementById('settingsButton');
+    const settingsModal = document.getElementById('settingsModal');
+    const closeSettings = document.getElementById('closeSettings');
+    const saveSettings = document.getElementById('saveSettings');
+    
+    // פתיחת חלון הגדרות
+    if (settingsButton) {
+        settingsButton.addEventListener('click', () => {
+            if (settingsModal) {
+                settingsModal.classList.add('active');
+                
+                // הצגת ההגדרות הנכונות בהתאם לשירות הנבחר
+                const transcriptionService = document.getElementById('transcriptionService');
+                const openAiSettings = document.getElementById('openAiSettings');
+                const ivritAiSettings = document.getElementById('ivritAiSettings');
+                
+                if (transcriptionService) {
+                    const isOpenAI = transcriptionService.value === 'openai';
+                    if (openAiSettings) openAiSettings.style.display = isOpenAI ? 'block' : 'none';
+                    if (ivritAiSettings) ivritAiSettings.style.display = isOpenAI ? 'none' : 'block';
+                }
+            }
+        });
+    }
+    
+    // סגירת חלון הגדרות עם X
+    if (closeSettings) {
+        closeSettings.addEventListener('click', () => {
+            if (settingsModal) settingsModal.classList.remove('active');
+        });
+    }
+    
+    // שמירת הגדרות
+    if (saveSettings) {
+        saveSettings.addEventListener('click', () => {
+            // שמירת הגדרות OpenAI
+            const apiKey = document.getElementById('apiKey');
+            if (apiKey && apiKey.value.trim()) {
+                storage.saveApiKey(apiKey.value.trim());
+            }
+            
+            // שמירת הגדרות ivrit.ai
+            const runpodApiKey = document.getElementById('runpodApiKey');
+            const endpointId = document.getElementById('endpointId');
+            const workerUrl = document.getElementById('workerUrl');
+            
+            if (runpodApiKey && endpointId && workerUrl) {
+                const runpod = runpodApiKey.value.trim();
+                const endpoint = endpointId.value.trim();
+                const worker = workerUrl.value.trim();
+                
+                if (runpod && endpoint && worker) {
+                    storage.saveIvritAiCredentials(runpod, endpoint, worker);
+                }
+            }
+            
+            // סגירת החלון
+            if (settingsModal) settingsModal.classList.remove('active');
+            
+            // עדכון מצב כפתורים
+            checkButtonsState();
+            
+            // הצגת הודעת הצלחה
+            showStatus('ההגדרות נשמרו בהצלחה ✓', 'success');
+            setTimeout(hideStatus, 3000);
+        });
+    }
+    
+    // סגירת מודל בלחיצה מחוץ לו
+    if (settingsModal) {
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) {
+                settingsModal.classList.remove('active');
+            }
+        });
+    }
+    
+    // מניעת סגירה בלחיצה על התוכן
+    const settingsContent = document.querySelector('.settings-content');
+    if (settingsContent) {
+        settingsContent.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
+}
+
+// חדש - מאזין לכפתור הסרת קובץ
+function setupRemoveFileButton() {
+    const removeFileBtn = document.getElementById('removeFileBtn');
+    
+    if (removeFileBtn) {
+        removeFileBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // למנוע הפעלת אירועים אחרים
+            
+            if (confirm('האם להסיר את הקובץ?')) {
+                // איפוס הקבצים
+                clearFiles();
+                
+                // הצגת הודעה
+                showStatus('הקובץ הוסר', 'success');
+                setTimeout(hideStatus, 2000);
+            }
+        });
+    }
 }
