@@ -272,5 +272,60 @@
     <script src="scripts/ivrit-transcription.js"></script>
     <script src="scripts/event-listeners.js"></script>
     <script src="scripts/main.js"></script>
+    
+    <!-- סקריפט לטיפול בסיסמה -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const passwordScreen = document.getElementById('passwordScreen');
+            const passwordInput = document.getElementById('passwordInput');
+            const passwordButton = document.getElementById('passwordButton');
+            const passwordError = document.getElementById('passwordError');
+            const mainContainer = document.getElementById('mainContainer');
+            
+            // בדיקה אם כבר נכנסו בעבר
+            const isAuthenticated = sessionStorage.getItem('authenticated') === 'true';
+            
+            if (isAuthenticated && passwordScreen && mainContainer) {
+                passwordScreen.style.display = 'none';
+                mainContainer.style.display = 'block';
+                // בדיקת סטטוס הגדרות רק אחרי הכניסה
+                if (typeof checkConfigurationStatus === 'function') {
+                    checkConfigurationStatus();
+                }
+                return;
+            }
+            
+            if (passwordButton && passwordInput) {
+                // בדיקת סיסמה בלחיצת כפתור
+                passwordButton.addEventListener('click', function() {
+                    if (passwordInput.value === '148148') {
+                        sessionStorage.setItem('authenticated', 'true');
+                        if (passwordScreen) passwordScreen.style.display = 'none';
+                        if (mainContainer) mainContainer.style.display = 'block';
+                        if (passwordError) passwordError.style.display = 'none';
+                        
+                        // אתחול המערכת לאחר כניסה
+                        if (typeof checkConfigurationStatus === 'function') {
+                            checkConfigurationStatus();
+                        }
+                    } else {
+                        if (passwordError) passwordError.style.display = 'block';
+                        passwordInput.value = '';
+                        passwordInput.focus();
+                    }
+                });
+                
+                // בדיקת סיסמה בלחיצת Enter
+                passwordInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        passwordButton.click();
+                    }
+                });
+                
+                // פוקוס אוטומטי על שדה הסיסמה
+                passwordInput.focus();
+            }
+        });
+    </script>
 </body>
 </html>
