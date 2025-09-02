@@ -22,12 +22,14 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
     
     try {
       const uploadRes = await fetch(`${workerUrl}/upload?name=${encodeURIComponent(safeName)}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': file.type || 'audio/wav'
-        },
-        body: file
-      });
+  method: 'PUT',
+  headers: {
+    'Content-Type': file.type || 'audio/wav',
+    'x-runpod-api-key': runpodApiKey,
+    'x-runpod-endpoint-id': endpointId
+  },
+  body: file
+});
       
       if (!uploadRes.ok) {
         const errorText = await uploadRes.text().catch(() => '');
