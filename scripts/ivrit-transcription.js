@@ -91,7 +91,7 @@ const uploadRes = await fetch(uploadUrl, {
 
   // ========== שליחה ל-ivrit.ai (דרך Worker) ==========
   showStatus('שולח את המשימה ל-ivrit.ai…', 'processing');
-  simulateProgress(5, 75, 60_000);
+  simulateProgress(75, 98, 1200_000);
 
   const startRes = await fetch(workerUrl, {
     method: 'POST',
@@ -125,7 +125,7 @@ const uploadRes = await fetch(uploadUrl, {
     showStatus('מעבד… (ivrit.ai)', 'processing');
     simulateProgress(75, 98, 180_000);
 
-    const deadline = Date.now() + 180_000; // 3 דקות
+    const deadline = Date.now() + 1200_000; // 3 דקות
     while (Date.now() < deadline) {
       await delay(2000);
 
