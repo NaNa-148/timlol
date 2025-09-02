@@ -179,3 +179,66 @@ function setupSliders() {
         });
     }
 }
+
+// פונקציה חדשה - בדיקת סטטוס הגדרות ועדכון הממשק
+function checkConfigurationStatus() {
+    const apiKey = document.getElementById('apiKey');
+    const runpodApiKey = document.getElementById('runpodApiKey');
+    const endpointId = document.getElementById('endpointId');
+    const workerUrl = document.getElementById('workerUrl');
+    
+    // בדיקת OpenAI
+    const hasOpenAIConfig = apiKey && apiKey.value.trim().length > 10;
+    
+    // בדיקת ivrit.ai
+    const hasIvritConfig = runpodApiKey && runpodApiKey.value.trim() && 
+                           endpointId && endpointId.value.trim() && 
+                           workerUrl && workerUrl.value.trim();
+    
+    // עדכון סטטוס על הקוביות
+    const openaiStatus = document.getElementById('openaiStatus');
+    const ivritStatus = document.getElementById('ivritStatus');
+    const openaiCard = document.querySelector('.service-card.openai');
+    const ivritCard = document.querySelector('.service-card.ivrit');
+    
+    if (openaiStatus && openaiCard) {
+        if (hasOpenAIConfig) {
+            openaiStatus.textContent = '✅ מוכן';
+            openaiStatus.className = 'service-status configured';
+            openaiCard.classList.add('ready');
+        } else {
+            openaiStatus.textContent = '❌ לא מוגדר';
+            openaiStatus.className = 'service-status not-configured';
+            openaiCard.classList.remove('ready');
+        }
+    }
+    
+    if (ivritStatus && ivritCard) {
+        if (hasIvritConfig) {
+            ivritStatus.textContent = '✅ מוכן';
+            ivritStatus.className = 'service-status configured';
+            ivritCard.classList.add('ready');
+        } else {
+            ivritStatus.textContent = '❌ לא מוגדר';
+            ivritStatus.className = 'service-status not-configured';
+            ivritCard.classList.remove('ready');
+        }
+    }
+    
+    // עדכון הודעה ראשית
+    const statusBox = document.getElementById('statusBox');
+    const statusText = document.getElementById('statusText');
+    const statusSubtext = document.getElementById('statusSubtext');
+    
+    if (statusBox && statusText && statusSubtext) {
+        if (hasOpenAIConfig || hasIvritConfig) {
+            statusBox.className = 'info-box ready';
+            statusText.textContent = '🚀 מוכן לשימוש!';
+            statusSubtext.textContent = 'בחר שירות תמלול והתחל לעבוד';
+        } else {
+            statusBox.className = 'info-box not-ready';
+            statusText.textContent = '⚠️ לא מוכן לשימוש';
+            statusSubtext.textContent = 'יש להגדיר פרטי התחברות לפחות לאחד מהשירותים';
+        }
+    }
+}
