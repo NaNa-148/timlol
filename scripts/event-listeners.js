@@ -52,7 +52,12 @@ function setupApiKeyListeners() {
             if (ivritAiGroup) ivritAiGroup.style.display = isOpenAI ? 'none' : 'block';
             if (languageGroup) languageGroup.style.display = isOpenAI ? 'block' : 'none';
             
-            checkButtonsState();
+            
+            // עדכון תצוגת בחירת שפה
+            const languageSelectionDiv = document.getElementById('languageSelectionDiv');
+            if (languageSelectionDiv) {
+                languageSelectionDiv.style.display = service === 'openai' ? 'block' : 'none';
+            }
         });
     }
     
@@ -64,6 +69,12 @@ function setupApiKeyListeners() {
                 storage.saveApiKey(key);
             }
             checkButtonsState();
+            
+            // עדכון תצוגת בחירת שפה
+            const languageSelectionDiv = document.getElementById('languageSelectionDiv');
+            if (languageSelectionDiv) {
+                languageSelectionDiv.style.display = service === 'openai' ? 'block' : 'none';
+            }
         });
 
         apiKeyInput.addEventListener('blur', (e) => {
