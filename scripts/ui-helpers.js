@@ -180,7 +180,7 @@ function setupSliders() {
     }
 }
 
-// פונקציה חדשה - בדיקת סטטוס הגדרות ועדכון הממשק
+// בדיקת סטטוס הגדרות ועדכון הממשק
 function checkConfigurationStatus() {
     const apiKey = document.getElementById('apiKey');
     const runpodApiKey = document.getElementById('runpodApiKey');
