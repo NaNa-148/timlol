@@ -1,13 +1,13 @@
 // /scripts/ivrit-transcription.js
-// שולח JSON (לא FormData) ל־Worker, כולל base64, Polling ותצוגת שגיאות ברורה.
-// ✅ תמיכה בקבצים גדולים דרך R2 Upload
+// תמלול ivrit.ai עם תמיכה מלאה בקבצים גדולים דרך R2
+// ✅ קבצים קטנים (<9MB) - base64
+// ✅ קבצים גדולים (>9MB) - העלאה ל-R2
 
 async function performIvritTranscription(file, runpodApiKey, endpointId, workerUrl) {
   if (!runpodApiKey || !endpointId || !workerUrl) {
     throw new Error('חסרים פרטי חיבור (RunPod API Key / Endpoint ID / Worker URL)');
   }
   if (!file) throw new Error('לא נבחר קובץ אודיו');
-  if (file.size > 100 * 1024 * 1024) throw new Error('קובץ גדול מדי (מקס׳ 100MB)');
 
   const safeName = (file.name || 'audio').replace(/[^\w.\-]+/g, '_');
   
@@ -18,18 +18,16 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
   
   if (isLargeFile) {
     // קובץ גדול - העלאה ל-R2
-    showStatus('מעלה קובץ גדול לאחסון...', 'processing');
+    showStatus(`מעלה קובץ גדול (${(file.size / 1024 / 1024).toFixed(1)}MB) לאחסון...`, 'processing');
     
     try {
       const uploadRes = await fetch(`${workerUrl}/upload?name=${encodeURIComponent(safeName)}`, {
-  method: 'PUT',
-  headers: {
-    'Content-Type': file.type || 'audio/wav',
-    'x-runpod-api-key': runpodApiKey,
-    'x-runpod-endpoint-id': endpointId
-  },
-  body: file
-});
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type || 'audio/wav'
+        },
+        body: file  // שליחת הקובץ הבינארי ישירות
+      });
       
       if (!uploadRes.ok) {
         const errorText = await uploadRes.text().catch(() => '');
@@ -38,7 +36,7 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
       
       const uploadData = await uploadRes.json();
       
-      if (!uploadData.success || !uploadData.url) {
+      if (!uploadData.url) {
         throw new Error('העלאה נכשלה - לא התקבל URL תקין');
       }
       
@@ -87,9 +85,7 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
     headers: {
       'Content-Type': 'application/json',
       'x-runpod-api-key': runpodApiKey,
-      'x-runpod-endpoint-id': endpointId,
-      // דיבוג חד-פעמי: בטל אחרי בדיקה
-      // 'x-debug': 'echo',
+      'x-runpod-endpoint-id': endpointId
     },
     body: JSON.stringify({ transcribe_args: transcribeArgs })
   });
