@@ -70,13 +70,15 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
     while (Date.now() < deadline) {
       await delay(2000);
 
+      // **תיקון: Polling בלי גוף בקשה, רק עם Headers**
       const pollRes = await fetch(workerUrl, {
-        method: 'POST',
+        method: 'GET',  // שינוי ל-GET במקום POST
         headers: {
           'x-runpod-api-key': runpodApiKey,
           'x-runpod-endpoint-id': endpointId,
           'x-job-id': String(jobId),
         }
+        // **הוסרה השורה: body: JSON.stringify({})**
       });
 
       if (!pollRes.ok) {
