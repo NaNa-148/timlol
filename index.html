@@ -14,9 +14,14 @@
             <p class="subtitle">המר אודיו לטקסט בעברית באמצעות בינה מלאכותית מתקדמת</p>
         </div>
 
-        <div class="info-box">
-            <div class="info-text">מוכן לשימוש! 🚀</div>
-            <div class="info-subtext">בחר שירות תמלול והגדר את פרטי ההתחברות</div>
+        <!-- כפתור הגדרות למעלה -->
+        <button class="settings-button" id="settingsButton">
+            ⚙️ הגדרות חיבור
+        </button>
+
+        <div class="info-box" id="statusBox">
+            <div class="info-text" id="statusText">⚠️ לא מוכן לשימוש</div>
+            <div class="info-subtext" id="statusSubtext">יש להגדיר פרטי התחברות לפחות לאחד מהשירותים</div>
         </div>
 
         <!-- בחירת שירות בקוביות חדש -->
@@ -26,6 +31,7 @@
                 <!-- ivrit בצד ימין וברירת מחדל -->
                 <div class="service-card ivrit selected" data-service="ivrit-ai">
                     <span class="service-badge">מומלץ לעברית</span>
+                    <span class="service-status not-configured" id="ivritStatus">❌ לא מוגדר</span>
                     <span class="service-icon">🇮🇱</span>
                     <div class="service-name">ivrit</div>
                     <div class="service-description">
@@ -37,9 +43,11 @@
                         <div class="service-feature">תמיכה בקבצים עד 100MB</div>
                         <div class="service-feature">עיבוד על GPU מהיר</div>
                     </div>
+                    <div class="service-config-note">להגדרת השירות לחץ על כפתור ההגדרות למעלה</div>
                 </div>
                 
                 <div class="service-card openai" data-service="openai">
+                    <span class="service-status not-configured" id="openaiStatus">❌ לא מוגדר</span>
                     <span class="service-icon">🌐</span>
                     <div class="service-name">OpenAI Whisper</div>
                     <div class="service-description">
@@ -51,14 +59,10 @@
                         <div class="service-feature">עד 25MB לקובץ</div>
                         <div class="service-feature">מהירות עיבוד גבוהה</div>
                     </div>
+                    <div class="service-config-note">להגדרת השירות לחץ על כפתור ההגדרות למעלה</div>
                 </div>
             </div>
         </div>
-
-        <!-- כפתור הגדרות חדש -->
-        <button class="settings-button" id="settingsButton">
-            ⚙️ הגדרות חיבור
-        </button>
 
         <!-- Select מוסתר לתאימות עם הקוד הקיים -->
         <select id="transcriptionService" style="display: none;">
