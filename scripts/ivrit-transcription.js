@@ -24,7 +24,9 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
       const uploadRes = await fetch(`${workerUrl}/upload?name=${encodeURIComponent(safeName)}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': file.type || 'audio/wav'
+          'Content-Type': file.type || 'audio/wav',
+          'x-runpod-api-key': runpodApiKey,
+          'x-runpod-endpoint-id': endpointId
         },
         body: file  // שליחת הקובץ הבינארי ישירות
       });
