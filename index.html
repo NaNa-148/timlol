@@ -16,77 +16,139 @@
 
         <div class="info-box">
             <div class="info-text">מוכן לשימוש! 🚀</div>
-            <div class="info-subtext">הזן את מפתח OpenAI API שלך למטה והתחל לתמלל</div>
+            <div class="info-subtext">בחר שירות תמלול והגדר את פרטי ההתחברות</div>
         </div>
 
-        <div class="options">
-            <div class="option-group">
-                <label class="option-label">🤖 שירות תמלול</label>
-                <select id="transcriptionService" class="api-input" style="padding: 12px;">
-                    <option value="openai" selected>OpenAI Whisper</option>
-                    <option value="ivrit-ai">ivrit.ai (מומחה לעברית)</option>
-                </select>
-            </div>
-
-            <div class="option-group" id="openAiGroup">
-                <label class="option-label">🔑 מפתח OpenAI API</label>
-                <input type="password" id="apiKey" class="api-input" placeholder="sk-proj-..." 
-                       autocomplete="off" spellcheck="false">
-                <small style="color: #666;">המפתח נשמר בזיכרון הדפדפן ולא נשלח לאף מקום אחר</small>
-            </div>
-
-            <div class="option-group" id="ivritAiGroup" style="display: none;">
-                <label class="option-label">🚀 הגדרות ivrit.ai</label>
+        <!-- בחירת שירות בקוביות חדש -->
+        <div class="service-selection">
+            <label class="option-label">🤖 בחר שירות תמלול</label>
+            <div class="service-cards">
+                <!-- ivrit בצד ימין וברירת מחדל -->
+                <div class="service-card ivrit selected" data-service="ivrit-ai">
+                    <span class="service-badge">מומלץ לעברית</span>
+                    <span class="service-icon">🇮🇱</span>
+                    <div class="service-name">ivrit</div>
+                    <div class="service-description">
+                        מודל מתמחה בשפה העברית עם דיוק מקסימלי
+                    </div>
+                    <div class="service-features">
+                        <div class="service-feature">מותאם במיוחד לעברית</div>
+                        <div class="service-feature">זיהוי ניבים וביטויים</div>
+                        <div class="service-feature">תמיכה בקבצים עד 100MB</div>
+                        <div class="service-feature">עיבוד על GPU מהיר</div>
+                    </div>
+                </div>
                 
-                <input type="password" id="runpodApiKey" class="api-input" placeholder="RunPod API Key" 
-                       autocomplete="off" spellcheck="false">
-                
-                <input type="text" id="endpointId" class="api-input" placeholder="Endpoint ID (לדוגמה: p8ku15ov44l7vj)" 
-                       autocomplete="off" spellcheck="false">
-                
-                <input type="url" id="workerUrl" class="api-input" placeholder="כתובת Cloudflare Worker" 
-                       autocomplete="off" spellcheck="false">
-                
-                <small style="color: #666;">הנתונים נשמרים בדפדפן ולא נשלחים למקום אחר</small>
-            </div>
-
-            <div class="option-group" id="languageGroup">
-                <label class="option-label">🌐 שפת תמלול</label>
-                <select id="languageSelect" class="api-input" style="padding: 12px;">
-                    <option value="auto">זיהוי אוטומטי</option>
-                    <option value="he" selected>עברית</option>
-                    <option value="en">English</option>
-                    <option value="ar">العربية</option>
-                    <option value="ru">Русский</option>
-                    <option value="es">Español</option>
-                    <option value="fr">Français</option>
-                    <option value="de">Deutsch</option>
-                    <option value="it">Italiano</option>
-                    <option value="pt">Português</option>
-                    <option value="zh">中文</option>
-                    <option value="ja">日本語</option>
-                    <option value="ko">한국어</option>
-                    <option value="hi">हिन्दी</option>
-                    <option value="tr">Türkçe</option>
-                    <option value="pl">Polski</option>
-                    <option value="nl">Nederlands</option>
-                    <option value="sv">Svenska</option>
-                    <option value="da">Dansk</option>
-                    <option value="no">Norsk</option>
-                    <option value="fi">Suomi</option>
-                </select>
+                <div class="service-card openai" data-service="openai">
+                    <span class="service-icon">🌐</span>
+                    <div class="service-name">OpenAI Whisper</div>
+                    <div class="service-description">
+                        מודל תמלול מתקדם עם תמיכה ב-20+ שפות
+                    </div>
+                    <div class="service-features">
+                        <div class="service-feature">זיהוי אוטומטי של שפה</div>
+                        <div class="service-feature">דיוק גבוה בעברית ואנגלית</div>
+                        <div class="service-feature">עד 25MB לקובץ</div>
+                        <div class="service-feature">מהירות עיבוד גבוהה</div>
+                    </div>
+                </div>
             </div>
         </div>
 
+        <!-- כפתור הגדרות חדש -->
+        <button class="settings-button" id="settingsButton">
+            ⚙️ הגדרות חיבור
+        </button>
+
+        <!-- Select מוסתר לתאימות עם הקוד הקיים -->
+        <select id="transcriptionService" style="display: none;">
+            <option value="openai">OpenAI Whisper</option>
+            <option value="ivrit-ai" selected>ivrit.ai (מומחה לעברית)</option>
+        </select>
+
+        <!-- חלון הגדרות Modal -->
+        <div class="settings-modal" id="settingsModal">
+            <div class="settings-content">
+                <div class="settings-header">
+                    <h2 class="settings-title">⚙️ הגדרות</h2>
+                    <button class="close-settings" id="closeSettings">✕</button>
+                </div>
+
+                <!-- הגדרות OpenAI -->
+                <div class="settings-section" id="openAiSettings" style="display: none;">
+                    <h3 class="settings-section-title">🌐 OpenAI Whisper</h3>
+                    <div class="option-group">
+                        <label class="option-label">🔑 מפתח OpenAI API</label>
+                        <input type="password" id="apiKey" class="api-input" placeholder="sk-proj-..." 
+                               autocomplete="off" spellcheck="false">
+                        <small style="color: #666;">המפתח נשמר בזיכרון הדפדפן ולא נשלח לאף מקום אחר</small>
+                    </div>
+                    
+                    <div class="option-group">
+                        <label class="option-label">🌐 שפת תמלול</label>
+                        <select id="languageSelect" class="api-input" style="padding: 12px;">
+                            <option value="auto">זיהוי אוטומטי</option>
+                            <option value="he" selected>עברית</option>
+                            <option value="en">English</option>
+                            <option value="ar">العربية</option>
+                            <option value="ru">Русский</option>
+                            <option value="es">Español</option>
+                            <option value="fr">Français</option>
+                            <option value="de">Deutsch</option>
+                            <option value="it">Italiano</option>
+                            <option value="pt">Português</option>
+                            <option value="zh">中文</option>
+                            <option value="ja">日本語</option>
+                            <option value="ko">한국어</option>
+                            <option value="hi">हिन्दी</option>
+                            <option value="tr">Türkçe</option>
+                            <option value="pl">Polski</option>
+                            <option value="nl">Nederlands</option>
+                            <option value="sv">Svenska</option>
+                            <option value="da">Dansk</option>
+                            <option value="no">Norsk</option>
+                            <option value="fi">Suomi</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- הגדרות ivrit -->
+                <div class="settings-section" id="ivritAiSettings">
+                    <h3 class="settings-section-title">🇮🇱 ivrit</h3>
+                    <div class="option-group">
+                        <label class="option-label">🚀 הגדרות חיבור</label>
+                        
+                        <input type="password" id="runpodApiKey" class="api-input" placeholder="RunPod API Key" 
+                               autocomplete="off" spellcheck="false">
+                        
+                        <input type="text" id="endpointId" class="api-input" placeholder="Endpoint ID (לדוגמה: p8ku15ov44l7vj)" 
+                               autocomplete="off" spellcheck="false">
+                        
+                        <input type="url" id="workerUrl" class="api-input" placeholder="כתובת Cloudflare Worker" 
+                               autocomplete="off" spellcheck="false">
+                        
+                        <small style="color: #666;">הנתונים נשמרים בדפדפן ולא נשלחים למקום אחר</small>
+                    </div>
+                </div>
+
+                <button class="button process-button" id="saveSettings" style="width: 100%; margin-top: 20px;">
+                    💾 שמור הגדרות
+                </button>
+            </div>
+        </div>
+
+        <!-- אזורי העלאה -->
         <div class="upload-area" id="uploadArea">
             <div class="upload-icon">🎤</div>
             <div class="upload-text">גרור קובץ אודיו לכאן או לחץ לבחירה</div>
-            <div class="upload-subtext">תומך ב-MP3, WAV, M4A, MP4, WEBM, FLAC (עד 25MB)</div>
+            <div class="upload-subtext">תומך ב-MP3, WAV, M4A, MP4, WEBM, FLAC</div>
             <button class="button select-button" onclick="document.getElementById('fileInput').click();">בחר קובץ</button>
             <input type="file" id="fileInput" class="file-input" accept="audio/*,video/*">
         </div>
 
+        <!-- מידע על הקובץ עם כפתור X -->
         <div class="file-info" id="fileInfo">
+            <button class="remove-file-btn" id="removeFileBtn" title="הסר קובץ">✕</button>
             <div class="file-name" id="fileName"></div>
             <div class="file-size" id="fileSize"></div>
         </div>
