@@ -31,8 +31,8 @@ function setupEventListeners() {
     // חדש - חלון הגדרות
     setupSettingsModal();
     
-    // חדש - כפתור הסרת קובץ
-    setupRemoveFileButton();
+    // חדש - בדיקת סטטוס הגדרות
+    setupConfigurationCheck();
 }
 
 // מאזינים למפתחות API
@@ -309,6 +309,12 @@ function setupSettingsModal() {
             
             // עדכון מצב כפתורים
             checkButtonsState();
+            
+            // עדכון סטטוס הגדרות
+            checkConfigurationStatus();
+            
+            // עדכון סטטוס הגדרות
+            checkConfigurationStatus();
             
             // הצגת הודעת הצלחה
             showStatus('ההגדרות נשמרו בהצלחה ✓', 'success');
