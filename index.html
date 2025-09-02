@@ -8,7 +8,17 @@
     <link rel="stylesheet" href="styles/main.css">
 </head>
 <body>
-    <div class="container">
+    <!-- מסך כניסה עם סיסמה -->
+    <div class="password-screen" id="passwordScreen">
+        <div class="password-container">
+            <h2 class="password-title">🔐 כניסה למערכת</h2>
+            <input type="password" id="passwordInput" class="password-input" placeholder="הזן סיסמה">
+            <button class="password-button" id="passwordButton">כניסה</button>
+            <div class="password-error" id="passwordError">סיסמה שגויה</div>
+        </div>
+    </div>
+
+    <div class="container" id="mainContainer" style="display: none;">
         <div class="header">
             <h1 class="title">תמלול עברית AI</h1>
             <p class="subtitle">המר אודיו לטקסט בעברית באמצעות בינה מלאכותית מתקדמת</p>
@@ -66,7 +76,7 @@
 
         <!-- בחירת שפה לOpenAI -->
         <div class="language-selection" id="languageSelectionDiv" style="display: none;">
-            <label class="option-label">🌐 שפת תמלול</label>
+            <label class="option-label">🌐 שפת תמלול (OpenAI בלבד)</label>
             <select id="languageSelect" class="api-input language-select">
                 <option value="auto">זיהוי אוטומטי</option>
                 <option value="he" selected>עברית</option>
@@ -106,8 +116,8 @@
                     <button class="close-settings" id="closeSettings">✕</button>
                 </div>
 
-                <!-- הגדרות OpenAI -->
-                <div class="settings-section" id="openAiSettings" style="display: none;">
+                <!-- הגדרות OpenAI - תמיד מוצג -->
+                <div class="settings-section" id="openAiSettings">
                     <h3 class="settings-section-title">🌐 OpenAI Whisper</h3>
                     <div class="option-group">
                         <label class="option-label">🔑 מפתח OpenAI API</label>
@@ -117,7 +127,7 @@
                     </div>
                 </div>
 
-                <!-- הגדרות ivrit -->
+                <!-- הגדרות ivrit - תמיד מוצג -->
                 <div class="settings-section" id="ivritAiSettings">
                     <h3 class="settings-section-title">🇮🇱 ivrit</h3>
                     <div class="option-group">
