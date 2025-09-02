@@ -91,7 +91,8 @@ const uploadRes = await fetch(uploadUrl, {
 
   // ========== שליחה ל-ivrit.ai (דרך Worker) ==========
   showStatus('שולח את המשימה ל-ivrit.ai…', 'processing');
-  simulateProgress(75, 98, 1200_000);
+  // התקדמות מהירה יותר להעלאה
+  simulateProgress(5, 30, 10_000);
 
   const startRes = await fetch(workerUrl, {
     method: 'POST',
@@ -122,8 +123,42 @@ const uploadRes = await fetch(uploadUrl, {
       throw new Error('השרת לא החזיר תוצאה וגם לא מזהה משימה (jobId)');
     }
 
-    showStatus('מעבד… (ivrit.ai)', 'processing');
-    simulateProgress(75, 98, 180_000);
+    // התחלת טיימר עם ספירה לאחור
+const startTime = Date.now();
+const maxTime = 1200_000; // 20 דקות
+let currentProgress = 30;
+
+// עדכון הבר עם טיימר
+const progressTimer = setInterval(() => {
+    const elapsed = Date.now() - startTime;
+    const remaining = Math.max(0, maxTime - elapsed);
+    
+    // חישוב התקדמות לפי זמן שעבר
+    currentProgress = 30 + (elapsed / maxTime) * 68; // מ-30% עד 98%
+    if (currentProgress > 98) currentProgress = 98;
+    
+    // עדכון הבר
+    const progressFill = document.getElementById('progressFill');
+    if (progressFill) {
+        progressFill.style.width = `${currentProgress}%`;
+    }
+    
+    // הצגת זמן
+    const elapsedMin = Math.floor(elapsed / 60000);
+    const elapsedSec = Math.floor((elapsed % 60000) / 1000);
+    const remainingMin = Math.floor(remaining / 60000);
+    const remainingSec = Math.floor((remaining % 60000) / 1000);
+    
+    showStatus(
+        `מעבד... | זמן שעבר: ${elapsedMin}:${elapsedSec.toString().padStart(2, '0')} | נותר (משוער): ${remainingMin}:${remainingSec.toString().padStart(2, '0')}`, 
+        'processing'
+    );
+    
+    // עצירה אם עבר הזמן המקסימלי
+    if (elapsed >= maxTime) {
+        clearInterval(progressTimer);
+    }
+}, 1000);
 
     const deadline = Date.now() + 1200_000; // 3 דקות
     while (Date.now() < deadline) {
@@ -178,6 +213,10 @@ const uploadRes = await fetch(uploadUrl, {
       ? transcript.segments
       : [{ start: 0, end: 0, text: transcript.text }]
   };
+
+if (typeof progressTimer !== 'undefined') {
+    clearInterval(progressTimer);
+}
 
   finalizeProgress();
   displayResults();
