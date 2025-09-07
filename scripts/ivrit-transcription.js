@@ -112,7 +112,7 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
   const startData = await safeJson(startRes);
   let transcript = extractTranscript(startData);
 
-    // ========== Polling (אם צריך) ==========
+  // ========== Polling (אם צריך) ==========
   if (!transcript) {
     const jobId =
       startData?.id || startData?.jobId ||
@@ -256,8 +256,41 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
   finalizeProgress();
   displayResults();
   showStatus('התמלול הושלם בהצלחה ✔️', 'success');
+}
 
-// ===== פונקציות עזר (ללא שינוי) =====
+// ===== פונקציות עזר =====
+
+function extractProgress(obj) {
+  if (!obj || typeof obj !== 'object') return null;
+  
+  // חיפוש בכל המיקומים האפשריים
+  const possibleFields = [
+    obj.progress,
+    obj.percent,
+    obj.percentage,
+    obj.completion,
+    obj.data?.progress,
+    obj.data?.percent,
+    obj.output?.progress,
+    obj.status?.progress,
+    obj.result?.progress
+  ];
+  
+  for (const field of possibleFields) {
+    if (typeof field === 'number' && field >= 0 && field <= 100) {
+      return field;
+    }
+    // אם זה string שמייצג מספר
+    if (typeof field === 'string') {
+      const num = parseFloat(field);
+      if (!isNaN(num) && num >= 0 && num <= 100) {
+        return num;
+      }
+    }
+  }
+  
+  return null;
+}
 
 function stripDataUrlPrefix(dataUrl) {
   if (typeof dataUrl !== 'string') return '';
@@ -310,7 +343,7 @@ function extractTranscript(obj) {
   // טיפול רגיל למבנים אחרים
   const core = obj.output || obj.result || obj.data || obj;
   if (typeof core === 'string') return { text: core };
-  const text = core?.text ?? core?.transcription ?? core?.transcript ?? core?.output ?? core?.result;
+  const text = core?.text ?? core?.transcription ?? core?.transcript ?? core?.output || core?.result;
   if (typeof text === 'string' && text.trim()) return { text: text.trim(), segments: core?.segments };
   const nested = core?.text?.content || core?.transcription?.content;
   if (typeof nested === 'string' && nested.trim()) return { text: nested.trim(), segments: core?.segments };
