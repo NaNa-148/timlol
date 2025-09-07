@@ -2,6 +2,8 @@
 // תמלול ivrit.ai עם תמיכה מלאה בקבצים גדולים דרך R2
 // ✅ קבצים קטנים (<9MB) - base64 רגיל
 // ✅ קבצים גדולים (>9MB) - העלאה ל-R2 ושימוש ב-URL
+// ✅ שמירת שם מקורי של הקובץ
+// ✅ העלאת התמלול ל-R2 באותו שם
 
 async function performIvritTranscription(file, runpodApiKey, endpointId, workerUrl) {
   if (!runpodApiKey || !endpointId || !workerUrl) {
@@ -15,6 +17,7 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
   const isLargeFile = file.size > 9 * 1024 * 1024;
   
   let transcribeArgs;
+  let audioFileKey = null; // לשמירת המפתח של הקובץ באחסון
   
   if (isLargeFile) {
     // ========== קובץ גדול - העלאה ל-R2 ==========
@@ -22,13 +25,18 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
     showStatus(`מעלה קובץ גדול (${sizeMB}MB) לאחסון...`, 'processing');
     
     try {
+      // שימוש בשם המקורי של הקובץ עם timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const originalName = safeName.replace(/\.[^/.]+$/, ""); // הסרת סיומת
+      const extension = safeName.split('.').pop();
+      const fullFileName = `${timestamp}_${originalName}.${extension}`;
+      
       // שליחת הקובץ הבינארי ישירות ל-Worker
-      // וודא שאין סלאש כפול
-const uploadUrl = workerUrl.endsWith('/') 
-  ? `${workerUrl}upload?name=${encodeURIComponent(safeName)}`
-  : `${workerUrl}/upload?name=${encodeURIComponent(safeName)}`;
+      const uploadUrl = workerUrl.endsWith('/') 
+        ? `${workerUrl}upload?name=${encodeURIComponent(fullFileName)}`
+        : `${workerUrl}/upload?name=${encodeURIComponent(fullFileName)}`;
 
-const uploadRes = await fetch(uploadUrl, {
+      const uploadRes = await fetch(uploadUrl, {
         method: 'PUT',
         headers: {
           'Content-Type': file.type || 'audio/wav',
@@ -49,7 +57,11 @@ const uploadRes = await fetch(uploadUrl, {
         throw new Error('העלאה נכשלה - לא התקבל URL תקין');
       }
       
+      // שמירת המפתח לשימוש בהעלאת התמלול
+      audioFileKey = uploadData.key || fullFileName;
+      
       console.log('קובץ הועלה בהצלחה:', uploadData.url);
+      console.log('מפתח הקובץ:', audioFileKey);
       
       // שימוש ב-URL במקום base64
       transcribeArgs = {
@@ -71,6 +83,12 @@ const uploadRes = await fetch(uploadUrl, {
   } else {
     // ========== קובץ קטן - base64 כרגיל ==========
     showStatus('ממיר אודיו ל-Base64…', 'processing');
+    
+    // יצירת שם עם timestamp גם לקובץ קטן (לשימוש בהעלאת התמלול)
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const originalName = safeName.replace(/\.[^/.]+$/, "");
+    const extension = safeName.split('.').pop();
+    audioFileKey = `${timestamp}_${originalName}.${extension}`;
     
     const dataUrl = await fileToDataUrl(file);
     const base64 = stripDataUrlPrefix(dataUrl);
@@ -113,152 +131,208 @@ const uploadRes = await fetch(uploadUrl, {
   let transcript = extractTranscript(startData);
 
   // ========== Polling (אם צריך) ==========
-if (!transcript) {
-  const jobId =
-    startData?.id || startData?.jobId ||
-    startData?.data?.id || startData?.data?.jobId;
+  if (!transcript) {
+    const jobId =
+      startData?.id || startData?.jobId ||
+      startData?.data?.id || startData?.data?.jobId;
 
-  if (!jobId) {
-    console.debug('Start response (no transcript, no jobId):', startData);
-    if (window.progressTracker) window.progressTracker.stop(false);
-    throw new Error('השרת לא החזיר תוצאה וגם לא מזהה משימה (jobId)');
-  }
+    if (!jobId) {
+      console.debug('Start response (no transcript, no jobId):', startData);
+      if (window.progressTracker) window.progressTracker.stop(false);
+      throw new Error('השרת לא החזיר תוצאה וגם לא מזהה משימה (jobId)');
+    }
 
-  // התחלת מעקב התקדמות
-  if (window.progressTracker) {
-    window.progressTracker.start(file.size);
-  }
+    // התחלת מעקב התקדמות
+    if (window.progressTracker) {
+      window.progressTracker.start(file.size);
+    }
 
-  showStatus('התמלול התחיל, מעקב אחר התקדמות...', 'processing');
-  
-  let lastProgress = 0;
-  let pollCount = 0;
-  let consecutiveErrors = 0;
-  const MAX_CONSECUTIVE_ERRORS = 5;
+    showStatus('התמלול התחיל, מעקב אחר התקדמות...', 'processing');
+    
+    let lastProgress = 0;
+    let pollCount = 0;
+    let consecutiveErrors = 0;
+    const MAX_CONSECUTIVE_ERRORS = 5;
 
-  // Polling loop - ללא הגבלת זמן!
-  while (true) {
-    await delay(2000);
-    pollCount++;
+    // Polling loop - ללא הגבלת זמן!
+    while (true) {
+      await delay(2000);
+      pollCount++;
 
-    try {
-      // Polling עם GET
-      const pollRes = await fetch(workerUrl, {
-        method: 'GET',
-        headers: {
-          'x-runpod-api-key': runpodApiKey,
-          'x-runpod-endpoint-id': endpointId,
-          'x-job-id': String(jobId),
+      try {
+        // Polling עם GET
+        const pollRes = await fetch(workerUrl, {
+          method: 'GET',
+          headers: {
+            'x-runpod-api-key': runpodApiKey,
+            'x-runpod-endpoint-id': endpointId,
+            'x-job-id': String(jobId),
+          }
+        });
+
+        if (!pollRes.ok) {
+          consecutiveErrors++;
+          const errText = await pollRes.text().catch(() => '');
+          console.warn(`Polling error ${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}: ${pollRes.status}`);
+          
+          if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+            if (window.progressTracker) window.progressTracker.stop(false);
+            throw new Error(`Polling נכשל ${MAX_CONSECUTIVE_ERRORS} פעמים ברצף: ${pollRes.status} – ${errText}`);
+          }
+          continue; // ננסה שוב
         }
-      });
 
-      if (!pollRes.ok) {
+        // איפוס מונה שגיאות אם הצלחנו
+        consecutiveErrors = 0;
+
+        const pollData = await safeJson(pollRes);
+        
+        // בדיקת התקדמות מהשרת
+        const serverProgress = extractProgress(pollData);
+        if (serverProgress !== null && serverProgress !== lastProgress) {
+          lastProgress = serverProgress;
+          
+          // חישוב בייטים מעובדים
+          const processedBytes = (file.size * serverProgress) / 100;
+          
+          // עדכון מעקב התקדמות
+          if (window.progressTracker) {
+            window.progressTracker.addMeasurement(processedBytes);
+          }
+        } else if (pollCount % 5 === 0) {
+          // מדידה מדומה כל 10 שניות אם אין התקדמות מהשרת
+          // אבל לא נעבור 95% כדי לא להטעות
+          const estimatedProgress = Math.min(95, lastProgress + 1);
+          const processedBytes = (file.size * estimatedProgress) / 100;
+          
+          if (window.progressTracker) {
+            window.progressTracker.addMeasurement(processedBytes);
+          }
+        }
+        
+        // בדיקת תמלול
+        transcript = extractTranscript(pollData);
+        if (transcript) {
+          console.log('Transcript received successfully');
+          break;
+        }
+
+        // בדיקת סטטוס
+        const status =
+          pollData?.status || pollData?.state ||
+          pollData?.data?.status || pollData?.data?.state;
+
+        if (status) {
+          console.log(`Job status: ${status}`);
+          
+          // בדיקת כשלון
+          if (/failed|error|cancelled|terminated/i.test(String(status))) {
+            const reason = pollData?.error || pollData?.data?.error ||
+                          pollData?.output?.error || pollData?.result?.error;
+            console.error('Job failed:', pollData);
+            if (window.progressTracker) window.progressTracker.stop(false);
+            throw new Error(`המשימה נכשלה בצד הספק (status=${status})${reason ? ` – ${reason}` : ''}`);
+          }
+
+          // בדיקת סיום
+          if (/completed|succeeded|success|done|finished/i.test(String(status))) {
+            transcript = extractTranscript(pollData);
+            if (transcript) {
+              console.log('Job completed with transcript');
+              break;
+            }
+            console.warn('Job completed but no transcript found:', pollData);
+            // ננסה עוד כמה פעמים למקרה שהתמלול בדרך
+            if (pollCount > 5) {
+              if (window.progressTracker) window.progressTracker.stop(false);
+              throw new Error('סיום דווח אך אין תמלול בתשובה');
+            }
+          }
+        }
+        
+        // בדיקה אם המשתמש ביטל
+        if (window.progressTracker && window.progressTracker.isCompleted) {
+          console.log('User cancelled transcription');
+          throw new Error('התמלול בוטל על ידי המשתמש');
+        }
+        
+      } catch (error) {
+        // אם זו לא שגיאת רשת, נזרוק אותה
+        if (!error.message.includes('fetch')) {
+          throw error;
+        }
+        
+        // שגיאת רשת - ננסה שוב
         consecutiveErrors++;
-        const errText = await pollRes.text().catch(() => '');
-        console.warn(`Polling error ${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}: ${pollRes.status}`);
+        console.warn(`Network error ${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}:`, error.message);
         
         if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
           if (window.progressTracker) window.progressTracker.stop(false);
-          throw new Error(`Polling נכשל ${MAX_CONSECUTIVE_ERRORS} פעמים ברצף: ${pollRes.status} – ${errText}`);
-        }
-        continue; // ננסה שוב
-      }
-
-      // איפוס מונה שגיאות אם הצלחנו
-      consecutiveErrors = 0;
-
-      const pollData = await safeJson(pollRes);
-      
-      // בדיקת התקדמות מהשרת
-      const serverProgress = extractProgress(pollData);
-      if (serverProgress !== null && serverProgress !== lastProgress) {
-        lastProgress = serverProgress;
-        
-        // חישוב בייטים מעובדים
-        const processedBytes = (file.size * serverProgress) / 100;
-        
-        // עדכון מעקב התקדמות
-        if (window.progressTracker) {
-          window.progressTracker.addMeasurement(processedBytes);
-        }
-      } else if (pollCount % 5 === 0) {
-        // מדידה מדומה כל 10 שניות אם אין התקדמות מהשרת
-        // אבל לא נעבור 95% כדי לא להטעות
-        const estimatedProgress = Math.min(95, lastProgress + 1);
-        const processedBytes = (file.size * estimatedProgress) / 100;
-        
-        if (window.progressTracker) {
-          window.progressTracker.addMeasurement(processedBytes);
+          throw new Error(`שגיאת רשת - נכשל ${MAX_CONSECUTIVE_ERRORS} פעמים ברצף`);
         }
       }
-      
-      // בדיקת תמלול
-      transcript = extractTranscript(pollData);
-      if (transcript) {
-        console.log('Transcript received successfully');
-        break;
-      }
+    }
 
-      // בדיקת סטטוס
-      const status =
-        pollData?.status || pollData?.state ||
-        pollData?.data?.status || pollData?.data?.state;
-
-      if (status) {
-        console.log(`Job status: ${status}`);
-        
-        // בדיקת כשלון
-        if (/failed|error|cancelled|terminated/i.test(String(status))) {
-          const reason = pollData?.error || pollData?.data?.error ||
-                        pollData?.output?.error || pollData?.result?.error;
-          console.error('Job failed:', pollData);
-          if (window.progressTracker) window.progressTracker.stop(false);
-          throw new Error(`המשימה נכשלה בצד הספק (status=${status})${reason ? ` – ${reason}` : ''}`);
-        }
-
-        // בדיקת סיום
-        if (/completed|succeeded|success|done|finished/i.test(String(status))) {
-          transcript = extractTranscript(pollData);
-          if (transcript) {
-            console.log('Job completed with transcript');
-            break;
-          }
-          console.warn('Job completed but no transcript found:', pollData);
-          // ננסה עוד כמה פעמים למקרה שהתמלול בדרך
-          if (pollCount > 5) {
-            if (window.progressTracker) window.progressTracker.stop(false);
-            throw new Error('סיום דווח אך אין תמלול בתשובה');
-          }
-        }
-      }
-      
-      // בדיקה אם המשתמש ביטל
-      if (window.progressTracker && window.progressTracker.isCompleted) {
-        console.log('User cancelled transcription');
-        throw new Error('התמלול בוטל על ידי המשתמש');
-      }
-      
-    } catch (error) {
-      // אם זו לא שגיאת רשת, נזרוק אותה
-      if (!error.message.includes('fetch')) {
-        throw error;
-      }
-      
-      // שגיאת רשת - ננסה שוב
-      consecutiveErrors++;
-      console.warn(`Network error ${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}:`, error.message);
-      
-      if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-        if (window.progressTracker) window.progressTracker.stop(false);
-        throw new Error(`שגיאת רשת - נכשל ${MAX_CONSECUTIVE_ERRORS} פעמים ברצף`);
-      }
+    if (!transcript) {
+      if (window.progressTracker) window.progressTracker.stop(false);
+      throw new Error('לא התקבל תמלול מהשרת');
     }
   }
 
-  if (!transcript) {
-    if (window.progressTracker) window.progressTracker.stop(false);
-    throw new Error('לא התקבל תמלול מהשרת');
+  // ========== הצגת תוצאות והעלאת תמלול ל-R2 ==========
+  transcriptResult = {
+    text: transcript.text,
+    segments: Array.isArray(transcript.segments) && transcript.segments.length
+      ? transcript.segments
+      : [{ start: 0, end: 0, text: transcript.text }]
+  };
+
+  // העלאת התמלול ל-R2 (אופציונלי)
+  if (audioFileKey && workerUrl) {
+    try {
+      // יצירת שם קובץ לתמלול - אותו שם כמו האודיו אבל עם סיומת .txt
+      const transcriptFileName = audioFileKey.replace(/\.[^/.]+$/, "") + "_transcript.txt";
+      
+      // העלאת התמלול כקובץ טקסט
+      const uploadTranscriptUrl = workerUrl.endsWith('/') 
+        ? `${workerUrl}upload?name=${encodeURIComponent(transcriptFileName)}`
+        : `${workerUrl}/upload?name=${encodeURIComponent(transcriptFileName)}`;
+      
+      const transcriptBlob = new Blob([transcript.text], { type: 'text/plain;charset=utf-8' });
+      
+      const uploadTranscriptRes = await fetch(uploadTranscriptUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8',
+          'x-runpod-api-key': runpodApiKey,
+          'x-runpod-endpoint-id': endpointId
+        },
+        body: transcriptBlob
+      });
+      
+      if (uploadTranscriptRes.ok) {
+        const transcriptData = await uploadTranscriptRes.json();
+        console.log('תמלול הועלה בהצלחה:', transcriptData.url);
+        
+        // אפשר להציג למשתמש הודעה או לשמור את הקישור
+        if (transcriptData.url) {
+          // שמירת URL התמלול למקרה הצורך
+          window.lastTranscriptUrl = transcriptData.url;
+        }
+      }
+    } catch (error) {
+      console.warn('לא ניתן להעלות תמלול ל-R2:', error);
+      // לא עוצרים את התהליך אם העלאת התמלול נכשלה
+    }
   }
+
+  if (typeof progressTimer !== 'undefined') {
+    clearInterval(progressTimer);
+  }
+
+  finalizeProgress();
+  displayResults();
+  showStatus('התמלול הושלם בהצלחה ✔️', 'success');
 }
 
 // פונקציה חדשה לחילוץ אחוז התקדמות מתשובת השרת
@@ -292,23 +366,6 @@ function extractProgress(obj) {
   }
   
   return null;
-}
-
-  // ========== הצגת תוצאות ==========
-  transcriptResult = {
-    text: transcript.text,
-    segments: Array.isArray(transcript.segments) && transcript.segments.length
-      ? transcript.segments
-      : [{ start: 0, end: 0, text: transcript.text }]
-  };
-
-if (typeof progressTimer !== 'undefined') {
-    clearInterval(progressTimer);
-}
-
-  finalizeProgress();
-  displayResults();
-  showStatus('התמלול הושלם בהצלחה ✔️', 'success');
 }
 
 // ===== פונקציות עזר (ללא שינוי) =====
@@ -364,7 +421,7 @@ function extractTranscript(obj) {
   // טיפול רגיל למבנים אחרים
   const core = obj.output || obj.result || obj.data || obj;
   if (typeof core === 'string') return { text: core };
-  const text = core?.text ?? core?.transcription ?? core?.transcript ?? core?.output ?? core?.result;
+  const text = core?.text ?? core?.transcription ?? core?.transcript ?? core?.output || core?.result;
   if (typeof text === 'string' && text.trim()) return { text: text.trim(), segments: core?.segments };
   const nested = core?.text?.content || core?.transcription?.content;
   if (typeof nested === 'string' && nested.trim()) return { text: nested.trim(), segments: core?.segments };
