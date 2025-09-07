@@ -30,6 +30,16 @@ function setupEventListeners() {
     
     // ייצוא והורדה
     setupExportButtons();
+
+     // שמירה בענן - חדש!
+    if (typeof setupSaveToCloudButton === 'function') {
+        setupSaveToCloudButton();
+    }
+    
+    // סטטיסטיקות - חדש!
+    if (typeof setupStatsListeners === 'function') {
+        setupStatsListeners();
+    }
     
     // קבצים
     setupFileHandling();
@@ -51,6 +61,10 @@ function setupEventListeners() {
     
     // חדש - בדיקת סטטוס הגדרות
     setupConfigurationCheck();
+
+    // חדש - כפתור הסרת קובץ
+    setupRemoveFileButton();
+    
 }
 
 // מאזינים למפתחות API
