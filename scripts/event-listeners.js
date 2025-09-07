@@ -276,6 +276,9 @@ function setupServiceCards() {
 }
 
 // חדש - מאזינים לחלון הגדרות
+// חדש - מאזינים לחלון הגדרות
+// החלף את הפונקציה setupSettingsModal() בקובץ scripts/event-listeners.js עם זה:
+
 function setupSettingsModal() {
     const settingsButton = document.getElementById('settingsButton');
     const settingsModal = document.getElementById('settingsModal');
@@ -287,8 +290,16 @@ function setupSettingsModal() {
         settingsButton.addEventListener('click', () => {
             if (settingsModal) {
                 settingsModal.classList.add('active');
-                // גלילה למעלה כדי שהמודל יהיה במרכז
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                // מניעת גלילה ברקע
+                document.body.style.overflow = 'hidden';
+                // וודא שהחלון במרכז
+                const settingsContent = document.querySelector('.settings-content');
+                if (settingsContent) {
+                    settingsContent.style.position = 'fixed';
+                    settingsContent.style.top = '50%';
+                    settingsContent.style.left = '50%';
+                    settingsContent.style.transform = 'translate(-50%, -50%)';
+                }
             }
         });
     }
@@ -296,7 +307,11 @@ function setupSettingsModal() {
     // סגירת חלון הגדרות עם X
     if (closeSettings) {
         closeSettings.addEventListener('click', () => {
-            if (settingsModal) settingsModal.classList.remove('active');
+            if (settingsModal) {
+                settingsModal.classList.remove('active');
+                // החזרת גלילה
+                document.body.style.overflow = '';
+            }
         });
     }
     
@@ -325,13 +340,14 @@ function setupSettingsModal() {
             }
             
             // סגירת החלון
-            if (settingsModal) settingsModal.classList.remove('active');
+            if (settingsModal) {
+                settingsModal.classList.remove('active');
+                // החזרת גלילה
+                document.body.style.overflow = '';
+            }
             
             // עדכון מצב כפתורים
             checkButtonsState();
-            
-            // עדכון סטטוס הגדרות
-            checkConfigurationStatus();
             
             // עדכון סטטוס הגדרות
             checkConfigurationStatus();
@@ -347,6 +363,8 @@ function setupSettingsModal() {
         settingsModal.addEventListener('click', (e) => {
             if (e.target === settingsModal) {
                 settingsModal.classList.remove('active');
+                // החזרת גלילה
+                document.body.style.overflow = '';
             }
         });
     }
@@ -358,8 +376,15 @@ function setupSettingsModal() {
             e.stopPropagation();
         });
     }
+    
+    // סגירה עם ESC
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && settingsModal && settingsModal.classList.contains('active')) {
+            settingsModal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    });
 }
-
 // חדש - מאזין לכפתור הסרת קובץ
 function setupRemoveFileButton() {
     const removeFileBtn = document.getElementById('removeFileBtn');
