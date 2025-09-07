@@ -2,6 +2,7 @@
 // תמלול ivrit.ai עם תמיכה מלאה בקבצים גדולים דרך R2
 // ✅ קבצים קטנים (<9MB) - base64 רגיל
 // ✅ קבצים גדולים (>9MB) - העלאה ל-R2 ושימוש ב-URL
+// ✅ תיקון: החלפת רווחים ותווים בעייתיים בשמות קבצים
 
 async function performIvritTranscription(file, runpodApiKey, endpointId, workerUrl) {
   if (!runpodApiKey || !endpointId || !workerUrl) {
@@ -9,8 +10,18 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
   }
   if (!file) throw new Error('לא נבחר קובץ אודיו');
 
-  // שמירת השם המקורי - ללא שינוי!
+  // פונקציה לניקוי שם קובץ
+  function cleanFileName(name) {
+    // החלפת רווחים ב-underscore והסרת תווים בעייתיים
+    return name
+      .replace(/\s+/g, '_')  // החלפת רווחים
+      .replace(/[^\w\u0590-\u05FF.-]/g, '') // השארת אנגלית, עברית, נקודה ומקף
+      .replace(/\.+/g, '.'); // מניעת נקודות כפולות
+  }
+  
+  // שמירת השם המקורי והנקי
   const originalFileName = file.name || 'audio.wav';
+  const cleanedFileName = cleanFileName(originalFileName);
   
   // בחירה אוטומטית: גדול מ-9MB → העלאה ל-R2
   const isLargeFile = file.size > 9 * 1024 * 1024;
@@ -23,10 +34,10 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
     showStatus(`מעלה קובץ גדול (${sizeMB}MB) לאחסון...`, 'processing');
     
     try {
-      // שליחת הקובץ עם השם המקורי
+      // שליחת הקובץ עם השם הנקי
       const uploadUrl = workerUrl.endsWith('/') 
-        ? `${workerUrl}upload?name=${encodeURIComponent(originalFileName)}`
-        : `${workerUrl}/upload?name=${encodeURIComponent(originalFileName)}`;
+        ? `${workerUrl}upload?name=${encodeURIComponent(cleanedFileName)}`
+        : `${workerUrl}/upload?name=${encodeURIComponent(cleanedFileName)}`;
 
       const uploadRes = await fetch(uploadUrl, {
         method: 'PUT',
@@ -50,11 +61,13 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
       }
       
       console.log('קובץ הועלה בהצלחה:', uploadData.url);
+      console.log('שם מקורי:', originalFileName);
+      console.log('שם נקי:', cleanedFileName);
       
       // שימוש ב-URL במקום base64
       transcribeArgs = {
         url: uploadData.url,
-        filename: originalFileName, // שם מקורי
+        filename: cleanedFileName, // שם נקי לשרת
         mime_type: file.type || 'audio/wav',
         language: 'he',
         punctuate: true,
@@ -81,7 +94,7 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
     
     transcribeArgs = {
       blob: base64,
-      filename: originalFileName, // שם מקורי
+      filename: cleanedFileName, // שם נקי גם לקבצים קטנים
       mime_type: file.type || 'audio/wav',
       language: 'he',
       punctuate: true,
@@ -124,18 +137,19 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
       throw new Error('השרת לא החזיר תוצאה וגם לא מזהה משימה (jobId)');
     }
 
-    // התחלת מעקב התקדמות פשוט
+    // התחלת מעקב התקדמות
     if (window.progressTracker) {
       window.progressTracker.start(file.size);
     }
 
-    showStatus('התמלול התחיל...', 'processing');
+    showStatus('התמלול התחיל, מעקב אחר התקדמות...', 'processing');
     
+    let lastProgress = 0;
     let pollCount = 0;
     let consecutiveErrors = 0;
     const MAX_CONSECUTIVE_ERRORS = 5;
 
-    // Polling loop
+    // Polling loop - ללא הגבלת זמן!
     while (true) {
       await delay(2000);
       pollCount++;
@@ -158,24 +172,37 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
           
           if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
             if (window.progressTracker) window.progressTracker.stop(false);
-            throw new Error(`שגיאת חיבור: ${pollRes.status}`);
+            throw new Error(`Polling נכשל ${MAX_CONSECUTIVE_ERRORS} פעמים ברצף: ${pollRes.status} – ${errText}`);
           }
-          continue;
+          continue; // ננסה שוב
         }
 
-        // איפוס מונה שגיאות
+        // איפוס מונה שגיאות אם הצלחנו
         consecutiveErrors = 0;
 
         const pollData = await safeJson(pollRes);
         
-        // עדכון אחוז התקדמות אם יש
+        // בדיקת התקדמות מהשרת
         const serverProgress = extractProgress(pollData);
-        if (serverProgress !== null && window.progressTracker) {
-          window.progressTracker.updateProgress(serverProgress);
-        } else if (pollCount % 5 === 0 && window.progressTracker) {
-          // אם אין התקדמות מהשרת, מעדכנים באופן הדרגתי
-          const estimatedProgress = Math.min(95, pollCount * 2);
-          window.progressTracker.updateProgress(estimatedProgress);
+        if (serverProgress !== null && serverProgress !== lastProgress) {
+          lastProgress = serverProgress;
+          
+          // חישוב בייטים מעובדים
+          const processedBytes = (file.size * serverProgress) / 100;
+          
+          // עדכון מעקב התקדמות
+          if (window.progressTracker) {
+            window.progressTracker.addMeasurement(processedBytes);
+          }
+        } else if (pollCount % 5 === 0) {
+          // מדידה מדומה כל 10 שניות אם אין התקדמות מהשרת
+          // אבל לא נעבור 95% כדי לא להטעות
+          const estimatedProgress = Math.min(95, lastProgress + 1);
+          const processedBytes = (file.size * estimatedProgress) / 100;
+          
+          if (window.progressTracker) {
+            window.progressTracker.addMeasurement(processedBytes);
+          }
         }
         
         // בדיקת תמלול
@@ -199,7 +226,7 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
                           pollData?.output?.error || pollData?.result?.error;
             console.error('Job failed:', pollData);
             if (window.progressTracker) window.progressTracker.stop(false);
-            throw new Error(`התמלול נכשל${reason ? `: ${reason}` : ''}`);
+            throw new Error(`המשימה נכשלה בצד הספק (status=${status})${reason ? ` – ${reason}` : ''}`);
           }
 
           // בדיקת סיום
@@ -210,11 +237,18 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
               break;
             }
             console.warn('Job completed but no transcript found:', pollData);
+            // ננסה עוד כמה פעמים למקרה שהתמלול בדרך
             if (pollCount > 5) {
               if (window.progressTracker) window.progressTracker.stop(false);
-              throw new Error('התמלול הסתיים ללא תוצאה');
+              throw new Error('סיום דווח אך אין תמלול בתשובה');
             }
           }
+        }
+        
+        // בדיקה אם המשתמש ביטל
+        if (window.progressTracker && window.progressTracker.isCompleted) {
+          console.log('User cancelled transcription');
+          throw new Error('התמלול בוטל על ידי המשתמש');
         }
         
       } catch (error) {
@@ -229,7 +263,7 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
         
         if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
           if (window.progressTracker) window.progressTracker.stop(false);
-          throw new Error(`שגיאת רשת`);
+          throw new Error(`שגיאת רשת - נכשל ${MAX_CONSECUTIVE_ERRORS} פעמים ברצף`);
         }
       }
     }
@@ -248,7 +282,10 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
       : [{ start: 0, end: 0, text: transcript.text }]
   };
 
-  // עצירת מעקב התקדמות - הצלחה!
+  if (typeof progressTimer !== 'undefined') {
+    clearInterval(progressTimer);
+  }
+
   if (window.progressTracker) {
     window.progressTracker.stop(true);
   }
@@ -260,6 +297,7 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
 
 // ===== פונקציות עזר =====
 
+// פונקציה לחילוץ אחוז התקדמות מתשובת השרת
 function extractProgress(obj) {
   if (!obj || typeof obj !== 'object') return null;
   
@@ -292,12 +330,14 @@ function extractProgress(obj) {
   return null;
 }
 
+// הסרת prefix של data URL
 function stripDataUrlPrefix(dataUrl) {
   if (typeof dataUrl !== 'string') return '';
   const idx = dataUrl.indexOf('base64,');
   return idx >= 0 ? dataUrl.slice(idx + 7) : dataUrl;
 }
 
+// המרת קובץ ל-Data URL
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -307,10 +347,12 @@ function fileToDataUrl(file) {
   });
 }
 
+// השהייה
 function delay(ms) { 
   return new Promise(res => setTimeout(res, ms)); 
 }
 
+// פרסור JSON בטוח
 async function safeJson(res) {
   try { 
     return await res.json(); 
@@ -321,6 +363,7 @@ async function safeJson(res) {
   }
 }
 
+// חילוץ תמלול מתשובת השרת
 function extractTranscript(obj) {
   if (!obj || typeof obj !== 'object') return null;
   
@@ -343,7 +386,7 @@ function extractTranscript(obj) {
   // טיפול רגיל למבנים אחרים
   const core = obj.output || obj.result || obj.data || obj;
   if (typeof core === 'string') return { text: core };
-  const text = core?.text ?? core?.transcription ?? core?.transcript ?? core?.output || core?.result;
+  const text = core?.text ?? core?.transcription ?? core?.transcript ?? core?.output ?? core?.result;
   if (typeof text === 'string' && text.trim()) return { text: text.trim(), segments: core?.segments };
   const nested = core?.text?.content || core?.transcription?.content;
   if (typeof nested === 'string' && nested.trim()) return { text: nested.trim(), segments: core?.segments };
