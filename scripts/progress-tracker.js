@@ -48,12 +48,11 @@ class TranscriptionProgressTracker {
         this.updateProgressBar();
     }
     
-    // עדכון בר התקדמות
-    updateProgressBar() {
-        const progressFill = document.getElementById('progressFill');
-        if (progressFill) {
-            progressFill.style.width = `${this.currentProgress}%`;
-        }
+    // הוסף את הפונקציה הזו אם היא לא קיימת
+    addMeasurement(processedBytes) {
+        // פונקציה זו נקראת מ-ivrit-transcription אבל לא עושה כלום במימוש הפשוט
+        // כי אנחנו משתמשים ב-updateProgress במקום
+        console.log('Progress measurement (bytes):', processedBytes);
     }
     
     // עדכון ממשק משתמש
