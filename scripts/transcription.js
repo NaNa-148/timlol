@@ -3,9 +3,12 @@
 let transcriptResult = null;
 
 // בחירת שירות תמלול
+// בחירת שירות תמלול
 async function selectTranscriptionService(file, apiKey) {
     const serviceSelect = document.getElementById('transcriptionService');
     const selectedService = serviceSelect ? serviceSelect.value : 'openai';
+    
+    console.log('Selected service:', selectedService);
     
     switch (selectedService) {
         case 'ivrit-ai':
@@ -13,14 +16,28 @@ async function selectTranscriptionService(file, apiKey) {
             const endpointId = document.getElementById('endpointId').value.trim();
             const workerUrl = document.getElementById('workerUrl').value.trim();
             
-            // בדיקה אם הפונקציה קיימת
+            // בדיקה מקיפה יותר
             if (typeof window.performIvritTranscription === 'function') {
+                console.log('Using window.performIvritTranscription');
                 return await window.performIvritTranscription(file, runpodApiKey, endpointId, workerUrl);
             } else if (typeof performIvritTranscription === 'function') {
+                console.log('Using global performIvritTranscription');
                 return await performIvritTranscription(file, runpodApiKey, endpointId, workerUrl);
             } else {
-                console.error('performIvritTranscription is not defined');
-                throw new Error('פונקציית תמלול ivrit.ai לא נמצאה. נסה לרענן את הדף.');
+                // נסיון אחרון - לטעון מחדש את הסקריפט
+                console.error('performIvritTranscription not found, attempting to reload');
+                
+                // בדיקה אם הקובץ נטען
+                const scripts = Array.from(document.getElementsByTagName('script'));
+                const ivritScriptExists = scripts.some(s => s.src.includes('ivrit-transcription.js'));
+                
+                if (!ivritScriptExists) {
+                    console.error('ivrit-transcription.js script tag not found in DOM');
+                } else {
+                    console.log('ivrit-transcription.js script tag found, but function not available');
+                }
+                
+                throw new Error('פונקציית תמלול ivrit.ai לא נמצאה. נסה לרענן את הדף (F5) או בדוק את Console לשגיאות.');
             }
             
         case 'openai':
