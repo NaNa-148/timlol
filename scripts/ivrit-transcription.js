@@ -112,187 +112,133 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
   const startData = await safeJson(startRes);
   let transcript = extractTranscript(startData);
 
-  // ========== Polling (אם צריך) ==========
-if (!transcript) {
-  const jobId =
-    startData?.id || startData?.jobId ||
-    startData?.data?.id || startData?.data?.jobId;
+    // ========== Polling (אם צריך) ==========
+  if (!transcript) {
+    const jobId =
+      startData?.id || startData?.jobId ||
+      startData?.data?.id || startData?.data?.jobId;
 
-  if (!jobId) {
-    console.debug('Start response (no transcript, no jobId):', startData);
-    if (window.progressTracker) window.progressTracker.stop(false);
-    throw new Error('השרת לא החזיר תוצאה וגם לא מזהה משימה (jobId)');
-  }
+    if (!jobId) {
+      console.debug('Start response (no transcript, no jobId):', startData);
+      if (window.progressTracker) window.progressTracker.stop(false);
+      throw new Error('השרת לא החזיר תוצאה וגם לא מזהה משימה (jobId)');
+    }
 
-  // התחלת מעקב התקדמות
-  if (window.progressTracker) {
-    window.progressTracker.start(file.size);
-  }
+    // התחלת מעקב התקדמות פשוט
+    if (window.progressTracker) {
+      window.progressTracker.start(file.size);
+    }
 
-  showStatus('התמלול התחיל, מעקב אחר התקדמות...', 'processing');
-  
-  let lastProgress = 0;
-  let pollCount = 0;
-  let consecutiveErrors = 0;
-  const MAX_CONSECUTIVE_ERRORS = 5;
+    showStatus('התמלול התחיל...', 'processing');
+    
+    let pollCount = 0;
+    let consecutiveErrors = 0;
+    const MAX_CONSECUTIVE_ERRORS = 5;
 
-  // Polling loop - ללא הגבלת זמן!
-  while (true) {
-    await delay(2000);
-    pollCount++;
+    // Polling loop
+    while (true) {
+      await delay(2000);
+      pollCount++;
 
-    try {
-      // Polling עם GET
-      const pollRes = await fetch(workerUrl, {
-        method: 'GET',
-        headers: {
-          'x-runpod-api-key': runpodApiKey,
-          'x-runpod-endpoint-id': endpointId,
-          'x-job-id': String(jobId),
+      try {
+        // Polling עם GET
+        const pollRes = await fetch(workerUrl, {
+          method: 'GET',
+          headers: {
+            'x-runpod-api-key': runpodApiKey,
+            'x-runpod-endpoint-id': endpointId,
+            'x-job-id': String(jobId),
+          }
+        });
+
+        if (!pollRes.ok) {
+          consecutiveErrors++;
+          const errText = await pollRes.text().catch(() => '');
+          console.warn(`Polling error ${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}: ${pollRes.status}`);
+          
+          if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+            if (window.progressTracker) window.progressTracker.stop(false);
+            throw new Error(`שגיאת חיבור: ${pollRes.status}`);
+          }
+          continue;
         }
-      });
 
-      if (!pollRes.ok) {
+        // איפוס מונה שגיאות
+        consecutiveErrors = 0;
+
+        const pollData = await safeJson(pollRes);
+        
+        // עדכון אחוז התקדמות אם יש
+        const serverProgress = extractProgress(pollData);
+        if (serverProgress !== null && window.progressTracker) {
+          window.progressTracker.updateProgress(serverProgress);
+        } else if (pollCount % 5 === 0 && window.progressTracker) {
+          // אם אין התקדמות מהשרת, מעדכנים באופן הדרגתי
+          const estimatedProgress = Math.min(95, pollCount * 2);
+          window.progressTracker.updateProgress(estimatedProgress);
+        }
+        
+        // בדיקת תמלול
+        transcript = extractTranscript(pollData);
+        if (transcript) {
+          console.log('Transcript received successfully');
+          break;
+        }
+
+        // בדיקת סטטוס
+        const status =
+          pollData?.status || pollData?.state ||
+          pollData?.data?.status || pollData?.data?.state;
+
+        if (status) {
+          console.log(`Job status: ${status}`);
+          
+          // בדיקת כשלון
+          if (/failed|error|cancelled|terminated/i.test(String(status))) {
+            const reason = pollData?.error || pollData?.data?.error ||
+                          pollData?.output?.error || pollData?.result?.error;
+            console.error('Job failed:', pollData);
+            if (window.progressTracker) window.progressTracker.stop(false);
+            throw new Error(`התמלול נכשל${reason ? `: ${reason}` : ''}`);
+          }
+
+          // בדיקת סיום
+          if (/completed|succeeded|success|done|finished/i.test(String(status))) {
+            transcript = extractTranscript(pollData);
+            if (transcript) {
+              console.log('Job completed with transcript');
+              break;
+            }
+            console.warn('Job completed but no transcript found:', pollData);
+            if (pollCount > 5) {
+              if (window.progressTracker) window.progressTracker.stop(false);
+              throw new Error('התמלול הסתיים ללא תוצאה');
+            }
+          }
+        }
+        
+      } catch (error) {
+        // אם זו לא שגיאת רשת, נזרוק אותה
+        if (!error.message.includes('fetch')) {
+          throw error;
+        }
+        
+        // שגיאת רשת - ננסה שוב
         consecutiveErrors++;
-        const errText = await pollRes.text().catch(() => '');
-        console.warn(`Polling error ${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}: ${pollRes.status}`);
+        console.warn(`Network error ${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}:`, error.message);
         
         if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
           if (window.progressTracker) window.progressTracker.stop(false);
-          throw new Error(`Polling נכשל ${MAX_CONSECUTIVE_ERRORS} פעמים ברצף: ${pollRes.status} – ${errText}`);
+          throw new Error(`שגיאת רשת`);
         }
-        continue; // ננסה שוב
-      }
-
-      // איפוס מונה שגיאות אם הצלחנו
-      consecutiveErrors = 0;
-
-      const pollData = await safeJson(pollRes);
-      
-      // בדיקת התקדמות מהשרת
-      const serverProgress = extractProgress(pollData);
-      if (serverProgress !== null && serverProgress !== lastProgress) {
-        lastProgress = serverProgress;
-        
-        // חישוב בייטים מעובדים
-        const processedBytes = (file.size * serverProgress) / 100;
-        
-        // עדכון מעקב התקדמות
-        if (window.progressTracker) {
-          window.progressTracker.addMeasurement(processedBytes);
-        }
-      } else if (pollCount % 5 === 0) {
-        // מדידה מדומה כל 10 שניות אם אין התקדמות מהשרת
-        // אבל לא נעבור 95% כדי לא להטעות
-        const estimatedProgress = Math.min(95, lastProgress + 1);
-        const processedBytes = (file.size * estimatedProgress) / 100;
-        
-        if (window.progressTracker) {
-          window.progressTracker.addMeasurement(processedBytes);
-        }
-      }
-      
-      // בדיקת תמלול
-      transcript = extractTranscript(pollData);
-      if (transcript) {
-        console.log('Transcript received successfully');
-        break;
-      }
-
-      // בדיקת סטטוס
-      const status =
-        pollData?.status || pollData?.state ||
-        pollData?.data?.status || pollData?.data?.state;
-
-      if (status) {
-        console.log(`Job status: ${status}`);
-        
-        // בדיקת כשלון
-        if (/failed|error|cancelled|terminated/i.test(String(status))) {
-          const reason = pollData?.error || pollData?.data?.error ||
-                        pollData?.output?.error || pollData?.result?.error;
-          console.error('Job failed:', pollData);
-          if (window.progressTracker) window.progressTracker.stop(false);
-          throw new Error(`המשימה נכשלה בצד הספק (status=${status})${reason ? ` – ${reason}` : ''}`);
-        }
-
-        // בדיקת סיום
-        if (/completed|succeeded|success|done|finished/i.test(String(status))) {
-          transcript = extractTranscript(pollData);
-          if (transcript) {
-            console.log('Job completed with transcript');
-            break;
-          }
-          console.warn('Job completed but no transcript found:', pollData);
-          // ננסה עוד כמה פעמים למקרה שהתמלול בדרך
-          if (pollCount > 5) {
-            if (window.progressTracker) window.progressTracker.stop(false);
-            throw new Error('סיום דווח אך אין תמלול בתשובה');
-          }
-        }
-      }
-      
-      // בדיקה אם המשתמש ביטל
-      if (window.progressTracker && window.progressTracker.isCompleted) {
-        console.log('User cancelled transcription');
-        throw new Error('התמלול בוטל על ידי המשתמש');
-      }
-      
-    } catch (error) {
-      // אם זו לא שגיאת רשת, נזרוק אותה
-      if (!error.message.includes('fetch')) {
-        throw error;
-      }
-      
-      // שגיאת רשת - ננסה שוב
-      consecutiveErrors++;
-      console.warn(`Network error ${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}:`, error.message);
-      
-      if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-        if (window.progressTracker) window.progressTracker.stop(false);
-        throw new Error(`שגיאת רשת - נכשל ${MAX_CONSECUTIVE_ERRORS} פעמים ברצף`);
       }
     }
-  }
 
-  if (!transcript) {
-    if (window.progressTracker) window.progressTracker.stop(false);
-    throw new Error('לא התקבל תמלול מהשרת');
-  }
-}
-
-// פונקציה חדשה לחילוץ אחוז התקדמות מתשובת השרת
-function extractProgress(obj) {
-  if (!obj || typeof obj !== 'object') return null;
-  
-  // חיפוש בכל המיקומים האפשריים
-  const possibleFields = [
-    obj.progress,
-    obj.percent,
-    obj.percentage,
-    obj.completion,
-    obj.data?.progress,
-    obj.data?.percent,
-    obj.output?.progress,
-    obj.status?.progress,
-    obj.result?.progress
-  ];
-  
-  for (const field of possibleFields) {
-    if (typeof field === 'number' && field >= 0 && field <= 100) {
-      return field;
-    }
-    // אם זה string שמייצג מספר
-    if (typeof field === 'string') {
-      const num = parseFloat(field);
-      if (!isNaN(num) && num >= 0 && num <= 100) {
-        return num;
-      }
+    if (!transcript) {
+      if (window.progressTracker) window.progressTracker.stop(false);
+      throw new Error('לא התקבל תמלול מהשרת');
     }
   }
-  
-  return null;
-}
 
   // ========== הצגת תוצאות ==========
   transcriptResult = {
@@ -302,14 +248,14 @@ function extractProgress(obj) {
       : [{ start: 0, end: 0, text: transcript.text }]
   };
 
-if (typeof progressTimer !== 'undefined') {
-    clearInterval(progressTimer);
-}
+  // עצירת מעקב התקדמות - הצלחה!
+  if (window.progressTracker) {
+    window.progressTracker.stop(true);
+  }
 
   finalizeProgress();
   displayResults();
   showStatus('התמלול הושלם בהצלחה ✔️', 'success');
-}
 
 // ===== פונקציות עזר (ללא שינוי) =====
 
