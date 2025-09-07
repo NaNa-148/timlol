@@ -5,7 +5,8 @@
 // ✅ שמירת שם מקורי של הקובץ
 // ✅ העלאת התמלול ל-R2 באותו שם
 
-async function performIvritTranscription(file, runpodApiKey, endpointId, workerUrl) {
+// הגדרה גלובלית מיידית
+window.performIvritTranscription = async function(file, runpodApiKey, endpointId, workerUrl) {
   if (!runpodApiKey || !endpointId || !workerUrl) {
     throw new Error('חסרים פרטי חיבור (RunPod API Key / Endpoint ID / Worker URL)');
   }
@@ -369,7 +370,7 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
   finalizeProgress();
   displayResults();
   showStatus('התמלול הושלם בהצלחה ✔️', 'success');
-}
+};
 
 // ===== פונקציות עזר (ללא שינוי) =====
 
@@ -431,7 +432,5 @@ function extractTranscript(obj) {
   return null;
 }
 
-// ===== חיבור לwindow - חשוב מאוד! =====
-if (typeof window !== 'undefined') {
-  window.performIvritTranscription = performIvritTranscription;
-}
+// בדיקה נוספת לוודא שהפונקציה נרשמה
+console.log('ivrit-transcription.js loaded, performIvritTranscription is:', typeof window.performIvritTranscription);
