@@ -9,7 +9,8 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
   }
   if (!file) throw new Error('לא נבחר קובץ אודיו');
 
-  const safeName = (file.name || 'audio').replace(/[^\w.\-]+/g, '_');
+  // שמירת השם המקורי - ללא שינוי!
+  const originalFileName = file.name || 'audio.wav';
   
   // בחירה אוטומטית: גדול מ-9MB → העלאה ל-R2
   const isLargeFile = file.size > 9 * 1024 * 1024;
@@ -22,20 +23,19 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
     showStatus(`מעלה קובץ גדול (${sizeMB}MB) לאחסון...`, 'processing');
     
     try {
-      // שליחת הקובץ הבינארי ישירות ל-Worker
-      // וודא שאין סלאש כפול
-const uploadUrl = workerUrl.endsWith('/') 
-  ? `${workerUrl}upload?name=${encodeURIComponent(safeName)}`
-  : `${workerUrl}/upload?name=${encodeURIComponent(safeName)}`;
+      // שליחת הקובץ עם השם המקורי
+      const uploadUrl = workerUrl.endsWith('/') 
+        ? `${workerUrl}upload?name=${encodeURIComponent(originalFileName)}`
+        : `${workerUrl}/upload?name=${encodeURIComponent(originalFileName)}`;
 
-const uploadRes = await fetch(uploadUrl, {
+      const uploadRes = await fetch(uploadUrl, {
         method: 'PUT',
         headers: {
           'Content-Type': file.type || 'audio/wav',
           'x-runpod-api-key': runpodApiKey,      
           'x-runpod-endpoint-id': endpointId    
         },
-        body: file  // שליחת הקובץ עצמו, לא base64!
+        body: file
       });
       
       if (!uploadRes.ok) {
@@ -53,13 +53,41 @@ const uploadRes = await fetch(uploadUrl, {
       
       // שימוש ב-URL במקום base64
       transcribeArgs = {
-        url: uploadData.url,  // זה השינוי העיקרי!
-        filename: safeName,
+        url: uploadData.url,
+        filename: originalFileName, // שם מקורי
         mime_type: file.type || 'audio/wav',
         language: 'he',
         punctuate: true,
         diarize: false
       };
+      
+      showStatus('קובץ הועלה בהצלחה, מתחיל תמלול...', 'processing');
+      
+    } catch (error) {
+      console.error('שגיאה בהעלאה:', error);
+      throw new Error(`שגיאה בהעלאת הקובץ: ${error.message}`);
+    }
+    
+  } else {
+    // ========== קובץ קטן - base64 כרגיל ==========
+    showStatus('ממיר אודיו ל-Base64…', 'processing');
+    
+    const dataUrl = await fileToDataUrl(file);
+    const base64 = stripDataUrlPrefix(dataUrl);
+    
+    if (!base64 || base64.length < 100) {
+      throw new Error('האודיו לא זוהה/ריק (base64 קצר מדי)');
+    }
+    
+    transcribeArgs = {
+      blob: base64,
+      filename: originalFileName, // שם מקורי
+      mime_type: file.type || 'audio/wav',
+      language: 'he',
+      punctuate: true,
+      diarize: false
+    };
+  }
       
       showStatus('קובץ הועלה בהצלחה, מתחיל תמלול...', 'processing');
       
