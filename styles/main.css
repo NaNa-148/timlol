@@ -118,6 +118,79 @@ body {
     cursor: not-allowed;
 }
 
+/* כפתור שמירה בענן */
+.save-cloud-button {
+    background: linear-gradient(135deg, #00bcd4, #0097a7);
+    color: white;
+    padding: 10px 20px;
+}
+
+.save-cloud-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 15px rgba(0, 188, 212, 0.3);
+}
+
+/* סטטיסטיקות תמלול */
+.transcript-stats {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 20px;
+    border: 1px solid #dee2e6;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.stat-item {
+    background: white;
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+    border: 1px solid #e9ecef;
+    transition: transform 0.2s ease;
+}
+
+.stat-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.stat-icon {
+    display: block;
+    font-size: 1.5rem;
+    margin-bottom: 5px;
+}
+
+.stat-value {
+    display: block;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #667eea;
+    margin-bottom: 3px;
+}
+
+.stat-label {
+    display: block;
+    font-size: 0.85rem;
+    color: #6c757d;
+}
+
+.stats-extra {
+    text-align: center;
+    color: #6c757d;
+    font-size: 0.9rem;
+    padding-top: 10px;
+    border-top: 1px solid #e9ecef;
+}
+
+.stats-extra span {
+    margin: 0 8px;
+}
+
 /* עיצוב קוביות בחירת שירות */
 .service-selection {
     margin-bottom: 30px;
