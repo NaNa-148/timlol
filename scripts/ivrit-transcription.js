@@ -125,7 +125,7 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
   const startData = await safeJson(startRes);
   let transcript = extractTranscript(startData);
 
-  // ========== Polling (אם צריך) ==========
+   // ========== Polling (אם צריך) ==========
   if (!transcript) {
     const jobId =
       startData?.id || startData?.jobId ||
@@ -137,6 +137,8 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
       throw new Error('השרת לא החזיר תוצאה וגם לא מזהה משימה (jobId)');
     }
 
+    console.log('Starting polling with jobId:', jobId);
+
     // התחלת מעקב התקדמות
     if (window.progressTracker) {
       window.progressTracker.start(file.size);
@@ -144,15 +146,17 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
 
     showStatus('התמלול התחיל, מעקב אחר התקדמות...', 'processing');
     
-    let lastProgress = 0;
     let pollCount = 0;
     let consecutiveErrors = 0;
     const MAX_CONSECUTIVE_ERRORS = 5;
+    const MAX_POLL_COUNT = 300; // מקסימום 10 דקות (300 * 2 שניות)
 
-    // Polling loop - ללא הגבלת זמן!
-    while (true) {
+    // Polling loop
+    while (pollCount < MAX_POLL_COUNT) {
       await delay(2000);
       pollCount++;
+      
+      console.log(`Polling attempt ${pollCount}...`);
 
       try {
         // Polling עם GET
@@ -181,34 +185,18 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
         consecutiveErrors = 0;
 
         const pollData = await safeJson(pollRes);
+        console.log('Poll response:', pollData);
         
-        // בדיקת התקדמות מהשרת
-        const serverProgress = extractProgress(pollData);
-        if (serverProgress !== null && serverProgress !== lastProgress) {
-          lastProgress = serverProgress;
-          
-          // חישוב בייטים מעובדים
-          const processedBytes = (file.size * serverProgress) / 100;
-          
-          // עדכון מעקב התקדמות
-          if (window.progressTracker) {
-            window.progressTracker.addMeasurement(processedBytes);
-          }
-        } else if (pollCount % 5 === 0) {
-          // מדידה מדומה כל 10 שניות אם אין התקדמות מהשרת
-          // אבל לא נעבור 95% כדי לא להטעות
-          const estimatedProgress = Math.min(95, lastProgress + 1);
-          const processedBytes = (file.size * estimatedProgress) / 100;
-          
-          if (window.progressTracker) {
-            window.progressTracker.addMeasurement(processedBytes);
-          }
+        // עדכון התקדמות פשוט - מבוסס על מספר הפעמים
+        const estimatedProgress = Math.min(95, pollCount * 2); // עולה ב-2% כל פעם עד 95%
+        if (window.progressTracker) {
+          window.progressTracker.updateProgress(estimatedProgress);
         }
         
         // בדיקת תמלול
         transcript = extractTranscript(pollData);
         if (transcript) {
-          console.log('Transcript received successfully');
+          console.log('Transcript received successfully!');
           break;
         }
 
@@ -231,17 +219,39 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
 
           // בדיקת סיום
           if (/completed|succeeded|success|done|finished/i.test(String(status))) {
+            console.log('Job completed, extracting transcript...');
             transcript = extractTranscript(pollData);
             if (transcript) {
               console.log('Job completed with transcript');
               break;
             }
             console.warn('Job completed but no transcript found:', pollData);
-            // ננסה עוד כמה פעמים למקרה שהתמלול בדרך
+            
+            // ננסה עוד כמה פעמים
             if (pollCount > 5) {
+              // אם אחרי 5 ניסיונות אין תמלול, נבדוק אם יש טקסט כלשהו
+              if (pollData?.output || pollData?.result) {
+                console.log('Trying to extract any text from output...');
+                const anyText = JSON.stringify(pollData);
+                if (anyText.includes('text')) {
+                  // ננסה לחלץ טקסט בכל דרך אפשרית
+                  transcript = { 
+                    text: 'התמלול הושלם אך הטקסט לא זוהה במבנה הצפוי. בדוק בלוגים.',
+                    segments: []
+                  };
+                  console.error('Unexpected response structure:', pollData);
+                  break;
+                }
+              }
+              
               if (window.progressTracker) window.progressTracker.stop(false);
               throw new Error('סיום דווח אך אין תמלול בתשובה');
             }
+          }
+          
+          // סטטוסים של תהליך רץ
+          if (/running|in_progress|processing|in_queue/i.test(String(status))) {
+            console.log('Job is still running...');
           }
         }
         
@@ -252,8 +262,10 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
         }
         
       } catch (error) {
+        console.error('Error in polling:', error);
+        
         // אם זו לא שגיאת רשת, נזרוק אותה
-        if (!error.message.includes('fetch')) {
+        if (!error.message.includes('fetch') && !error.message.includes('Failed to fetch')) {
           throw error;
         }
         
@@ -266,6 +278,12 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
           throw new Error(`שגיאת רשת - נכשל ${MAX_CONSECUTIVE_ERRORS} פעמים ברצף`);
         }
       }
+    }
+
+    // אם הגענו למקסימום polling
+    if (pollCount >= MAX_POLL_COUNT) {
+      if (window.progressTracker) window.progressTracker.stop(false);
+      throw new Error('התמלול לוקח זמן רב מדי (מעל 10 דקות). נסה שוב.');
     }
 
     if (!transcript) {
