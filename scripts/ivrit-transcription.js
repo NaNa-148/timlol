@@ -113,57 +113,35 @@ const uploadRes = await fetch(uploadUrl, {
   let transcript = extractTranscript(startData);
 
   // ========== Polling (אם צריך) ==========
-  if (!transcript) {
-    const jobId =
-      startData?.id || startData?.jobId ||
-      startData?.data?.id || startData?.data?.jobId;
+if (!transcript) {
+  const jobId =
+    startData?.id || startData?.jobId ||
+    startData?.data?.id || startData?.data?.jobId;
 
-    if (!jobId) {
-      console.debug('Start response (no transcript, no jobId):', startData);
-      throw new Error('השרת לא החזיר תוצאה וגם לא מזהה משימה (jobId)');
-    }
+  if (!jobId) {
+    console.debug('Start response (no transcript, no jobId):', startData);
+    if (window.progressTracker) window.progressTracker.stop(false);
+    throw new Error('השרת לא החזיר תוצאה וגם לא מזהה משימה (jobId)');
+  }
 
-    // התחלת טיימר עם ספירה לאחור
-const startTime = Date.now();
-const maxTime = 1200_000; // 20 דקות
-let currentProgress = 30;
+  // התחלת מעקב התקדמות
+  if (window.progressTracker) {
+    window.progressTracker.start(file.size);
+  }
 
-// עדכון הבר עם טיימר
-const progressTimer = setInterval(() => {
-    const elapsed = Date.now() - startTime;
-    const remaining = Math.max(0, maxTime - elapsed);
-    
-    // חישוב התקדמות לפי זמן שעבר
-    currentProgress = 30 + (elapsed / maxTime) * 68; // מ-30% עד 98%
-    if (currentProgress > 98) currentProgress = 98;
-    
-    // עדכון הבר
-    const progressFill = document.getElementById('progressFill');
-    if (progressFill) {
-        progressFill.style.width = `${currentProgress}%`;
-    }
-    
-    // הצגת זמן
-    const elapsedMin = Math.floor(elapsed / 60000);
-    const elapsedSec = Math.floor((elapsed % 60000) / 1000);
-    const remainingMin = Math.floor(remaining / 60000);
-    const remainingSec = Math.floor((remaining % 60000) / 1000);
-    
-    showStatus(
-        `מעבד... | זמן שעבר: ${elapsedMin}:${elapsedSec.toString().padStart(2, '0')} | נותר (משוער): ${remainingMin}:${remainingSec.toString().padStart(2, '0')}`, 
-        'processing'
-    );
-    
-    // עצירה אם עבר הזמן המקסימלי
-    if (elapsed >= maxTime) {
-        clearInterval(progressTimer);
-    }
-}, 1000);
+  showStatus('התמלול התחיל, מעקב אחר התקדמות...', 'processing');
+  
+  let lastProgress = 0;
+  let pollCount = 0;
+  let consecutiveErrors = 0;
+  const MAX_CONSECUTIVE_ERRORS = 5;
 
-    const deadline = Date.now() + 1200_000; // 3 דקות
-    while (Date.now() < deadline) {
-      await delay(2000);
+  // Polling loop - ללא הגבלת זמן!
+  while (true) {
+    await delay(2000);
+    pollCount++;
 
+    try {
       // Polling עם GET
       const pollRes = await fetch(workerUrl, {
         method: 'GET',
@@ -175,36 +153,146 @@ const progressTimer = setInterval(() => {
       });
 
       if (!pollRes.ok) {
+        consecutiveErrors++;
         const errText = await pollRes.text().catch(() => '');
-        throw new Error(`Polling נכשל: ${pollRes.status} – ${errText}`);
+        console.warn(`Polling error ${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}: ${pollRes.status}`);
+        
+        if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+          if (window.progressTracker) window.progressTracker.stop(false);
+          throw new Error(`Polling נכשל ${MAX_CONSECUTIVE_ERRORS} פעמים ברצף: ${pollRes.status} – ${errText}`);
+        }
+        continue; // ננסה שוב
       }
 
-      const pollData = await safeJson(pollRes);
-      transcript = extractTranscript(pollData);
+      // איפוס מונה שגיאות אם הצלחנו
+      consecutiveErrors = 0;
 
+      const pollData = await safeJson(pollRes);
+      
+      // בדיקת התקדמות מהשרת
+      const serverProgress = extractProgress(pollData);
+      if (serverProgress !== null && serverProgress !== lastProgress) {
+        lastProgress = serverProgress;
+        
+        // חישוב בייטים מעובדים
+        const processedBytes = (file.size * serverProgress) / 100;
+        
+        // עדכון מעקב התקדמות
+        if (window.progressTracker) {
+          window.progressTracker.addMeasurement(processedBytes);
+        }
+      } else if (pollCount % 5 === 0) {
+        // מדידה מדומה כל 10 שניות אם אין התקדמות מהשרת
+        // אבל לא נעבור 95% כדי לא להטעות
+        const estimatedProgress = Math.min(95, lastProgress + 1);
+        const processedBytes = (file.size * estimatedProgress) / 100;
+        
+        if (window.progressTracker) {
+          window.progressTracker.addMeasurement(processedBytes);
+        }
+      }
+      
+      // בדיקת תמלול
+      transcript = extractTranscript(pollData);
+      if (transcript) {
+        console.log('Transcript received successfully');
+        break;
+      }
+
+      // בדיקת סטטוס
       const status =
         pollData?.status || pollData?.state ||
         pollData?.data?.status || pollData?.data?.state;
 
-      if (transcript) break;
+      if (status) {
+        console.log(`Job status: ${status}`);
+        
+        // בדיקת כשלון
+        if (/failed|error|cancelled|terminated/i.test(String(status))) {
+          const reason = pollData?.error || pollData?.data?.error ||
+                        pollData?.output?.error || pollData?.result?.error;
+          console.error('Job failed:', pollData);
+          if (window.progressTracker) window.progressTracker.stop(false);
+          throw new Error(`המשימה נכשלה בצד הספק (status=${status})${reason ? ` – ${reason}` : ''}`);
+        }
 
-      if (status && /failed|error/i.test(String(status))) {
-        const reason = pollData?.error || pollData?.data?.error ||
-                       pollData?.output?.error || pollData?.result?.error;
-        console.debug('Polling failed payload:', pollData);
-        throw new Error(`המשימה נכשלה בצד הספק (status=${status})${reason ? ` – ${reason}` : ''}`);
+        // בדיקת סיום
+        if (/completed|succeeded|success|done|finished/i.test(String(status))) {
+          transcript = extractTranscript(pollData);
+          if (transcript) {
+            console.log('Job completed with transcript');
+            break;
+          }
+          console.warn('Job completed but no transcript found:', pollData);
+          // ננסה עוד כמה פעמים למקרה שהתמלול בדרך
+          if (pollCount > 5) {
+            if (window.progressTracker) window.progressTracker.stop(false);
+            throw new Error('סיום דווח אך אין תמלול בתשובה');
+          }
+        }
       }
-
-      if (status && /completed|succeeded|success|done/i.test(String(status))) {
-        transcript = extractTranscript(pollData);
-        if (transcript) break;
-        console.debug('Completed but no transcript field:', pollData);
-        throw new Error('סיום דווח אך אין תמלול בתשובה');
+      
+      // בדיקה אם המשתמש ביטל
+      if (window.progressTracker && window.progressTracker.isCompleted) {
+        console.log('User cancelled transcription');
+        throw new Error('התמלול בוטל על ידי המשתמש');
+      }
+      
+    } catch (error) {
+      // אם זו לא שגיאת רשת, נזרוק אותה
+      if (!error.message.includes('fetch')) {
+        throw error;
+      }
+      
+      // שגיאת רשת - ננסה שוב
+      consecutiveErrors++;
+      console.warn(`Network error ${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}:`, error.message);
+      
+      if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+        if (window.progressTracker) window.progressTracker.stop(false);
+        throw new Error(`שגיאת רשת - נכשל ${MAX_CONSECUTIVE_ERRORS} פעמים ברצף`);
       }
     }
-
-    if (!transcript) throw new Error('חריגה מזמן ההמתנה לתמלול (timeout)');
   }
+
+  if (!transcript) {
+    if (window.progressTracker) window.progressTracker.stop(false);
+    throw new Error('לא התקבל תמלול מהשרת');
+  }
+}
+
+// פונקציה חדשה לחילוץ אחוז התקדמות מתשובת השרת
+function extractProgress(obj) {
+  if (!obj || typeof obj !== 'object') return null;
+  
+  // חיפוש בכל המיקומים האפשריים
+  const possibleFields = [
+    obj.progress,
+    obj.percent,
+    obj.percentage,
+    obj.completion,
+    obj.data?.progress,
+    obj.data?.percent,
+    obj.output?.progress,
+    obj.status?.progress,
+    obj.result?.progress
+  ];
+  
+  for (const field of possibleFields) {
+    if (typeof field === 'number' && field >= 0 && field <= 100) {
+      return field;
+    }
+    // אם זה string שמייצג מספר
+    if (typeof field === 'string') {
+      const num = parseFloat(field);
+      if (!isNaN(num) && num >= 0 && num <= 100) {
+        return num;
+      }
+    }
+  }
+  
+  return null;
+}
 
   // ========== הצגת תוצאות ==========
   transcriptResult = {
