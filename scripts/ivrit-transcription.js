@@ -1,3 +1,4 @@
+
 // /scripts/ivrit-transcription.js
 // תמלול ivrit.ai עם תמיכה מלאה בקבצים גדולים דרך R2
 // ✅ קבצים קטנים (<9MB) - base64 רגיל
@@ -8,7 +9,7 @@ let globalProgressTimer = null;
 let transcriptionStartTime = null;
 
 // הגדרת הפונקציה הראשית
-async function performIvritTranscription(file, runpodApiKey, endpointId, workerUrl) {
+window.performIvritTranscription = async function(file, runpodApiKey, endpointId, workerUrl) {
   if (!runpodApiKey || !endpointId || !workerUrl) {
     throw new Error('חסרים פרטי חיבור (RunPod API Key / Endpoint ID / Worker URL)');
   }
