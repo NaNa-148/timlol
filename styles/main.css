@@ -976,3 +976,20 @@ body {
         max-width: 100%;
     }
 }
+
+/* אנימציית התראות */
+@keyframes slideDown {
+    from {
+        transform: translateX(-50%) translateY(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+    }
+}
+
+/* עיצוב התראות */
+.alert {
+    animation: slideDown 0.3s ease;
+}
