@@ -1,15 +1,13 @@
-
 // /scripts/ivrit-transcription.js
 // תמלול ivrit.ai עם תמיכה מלאה בקבצים גדולים דרך R2
 // ✅ קבצים קטנים (<9MB) - base64 רגיל
 // ✅ קבצים גדולים (>9MB) - העלאה ל-R2 ושימוש ב-URL
 
-// משתנה גלובלי לשמירת הטיימר
+// משתנים גלובליים
 let globalProgressTimer = null;
 let transcriptionStartTime = null;
 
-// הגדרת הפונקציה הראשית
-window.performIvritTranscription = async function(file, runpodApiKey, endpointId, workerUrl) {
+async function performIvritTranscription(file, runpodApiKey, endpointId, workerUrl) {
   if (!runpodApiKey || !endpointId || !workerUrl) {
     throw new Error('חסרים פרטי חיבור (RunPod API Key / Endpoint ID / Worker URL)');
   }
@@ -362,7 +360,7 @@ function extractTranscript(obj) {
   return null;
 }
 
-// ===== הגדרה גלובלית של הפונקציות =====
+// ===== הגדרה גלובלית של הפונקציות - קריטי! =====
 // זה מוודא שהפונקציות זמינות מכל מקום בקוד
 if (typeof window !== 'undefined') {
   window.performIvritTranscription = performIvritTranscription;
@@ -370,4 +368,9 @@ if (typeof window !== 'undefined') {
   window.fileToDataUrl = fileToDataUrl;
   window.safeJson = safeJson;
   window.extractTranscript = extractTranscript;
+  window.delay = delay;
+  
+  // הדפסה לקונסול לוודא שהכל נטען
+  console.log('✓ ivrit-transcription.js loaded successfully');
+  console.log('✓ performIvritTranscription is available:', typeof window.performIvritTranscription === 'function');
 }
