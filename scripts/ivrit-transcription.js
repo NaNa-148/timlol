@@ -88,34 +88,6 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
       diarize: false
     };
   }
-      
-      showStatus('קובץ הועלה בהצלחה, מתחיל תמלול...', 'processing');
-      
-    } catch (error) {
-      console.error('שגיאה בהעלאה:', error);
-      throw new Error(`שגיאה בהעלאת הקובץ: ${error.message}`);
-    }
-    
-  } else {
-    // ========== קובץ קטן - base64 כרגיל ==========
-    showStatus('ממיר אודיו ל-Base64…', 'processing');
-    
-    const dataUrl = await fileToDataUrl(file);
-    const base64 = stripDataUrlPrefix(dataUrl);
-    
-    if (!base64 || base64.length < 100) {
-      throw new Error('האודיו לא זוהה/ריק (base64 קצר מדי)');
-    }
-    
-    transcribeArgs = {
-      blob: base64,  // קבצים קטנים - base64 כרגיל
-      filename: safeName,
-      mime_type: file.type || 'audio/wav',
-      language: 'he',
-      punctuate: true,
-      diarize: false
-    };
-  }
 
   // ========== שליחה ל-ivrit.ai (דרך Worker) ==========
   showStatus('שולח את המשימה ל-ivrit.ai…', 'processing');
