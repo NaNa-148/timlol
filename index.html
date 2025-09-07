@@ -261,49 +261,49 @@
     </div>
 
     <!-- Load scripts -->
-    <script>
-        // ביטול מוחלט של כל ההתראות - חייב להיות ראשון!
-        (function() {
-            // מחליף את window.alert
-            window.alert = function() { return false; };
-            
-            // מטפל בשגיאות
-            window.addEventListener('error', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                e.stopImmediatePropagation();
-                return true;
-            }, true);
-            
-            // מטפל בהבטחות שנכשלו
-            window.addEventListener('unhandledrejection', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                e.stopImmediatePropagation();
-                return true;
-            }, true);
-            
-            // משתיק console
-            if (typeof console !== 'undefined') {
-                const noop = function() {};
-                console.error = noop;
-                console.warn = noop;
-                console.log = noop;
-            }
-        })();
-    </script>
-    
-    <script src="scripts/storage.js"></script>
-    <script src="scripts/audio-processor.js"></script>
-    <script src="scripts/waveform.js"></script>
-    <script src="scripts/ui-helpers.js"></script>
-    <script src="scripts/file-handler.js"></script>
-    <script src="scripts/transcription.js"></script>
-    <script src="scripts/text-improvement.js"></script>
-    <script src="scripts/export-download.js"></script>
-    <script src="scripts/ivrit-transcription.js"></script>
-    <script src="scripts/event-listeners.js"></script>
-    <script src="scripts/main.js"></script>
+   <script>
+    // ביטול מוחלט של כל ההתראות - חייב להיות ראשון!
+    (function() {
+        // מחליף את window.alert
+        window.alert = function() { return false; };
+        
+        // מטפל בשגיאות
+        window.addEventListener('error', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            return true;
+        }, true);
+        
+        // מטפל בהבטחות שנכשלו
+        window.addEventListener('unhandledrejection', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            return true;
+        }, true);
+        
+        // משתיק console
+        if (typeof console !== 'undefined') {
+            const noop = function() {};
+            console.error = noop;
+            console.warn = noop;
+            console.log = noop;
+        }
+    })();
+</script>
+
+<script src="scripts/storage.js"></script>
+<script src="scripts/audio-processor.js"></script>
+<script src="scripts/waveform.js"></script>
+<script src="scripts/ui-helpers.js"></script>
+<script src="scripts/file-handler.js"></script>
+<script src="scripts/ivrit-transcription.js"></script> <!-- הועבר לפני transcription.js -->
+<script src="scripts/transcription.js"></script> <!-- עכשיו אחרי ivrit-transcription.js -->
+<script src="scripts/text-improvement.js"></script>
+<script src="scripts/export-download.js"></script>
+<script src="scripts/event-listeners.js"></script>
+<script src="scripts/main.js"></script>
     
     <!-- סקריפט לטיפול בסיסמה ואתחול -->
     <script>
