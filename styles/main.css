@@ -366,24 +366,25 @@ body {
 }
 
 /* תיקון מיקום חלון הגדרות */
+/* חלון הגדרות Modal - תמיד במרכז המסך */
 .settings-modal {
     display: none;
     position: fixed;
-    z-index: 1000;
+    z-index: 10000; /* הגדלת z-index כדי להיות מעל הכל */
     left: 0;
     top: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.7); /* רקע כהה יותר */
     animation: fadeIn 0.3s ease;
-    overflow-y: auto;
+    overflow: hidden; /* מניעת גלילה ברקע */
 }
 
 .settings-modal.active {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 20px;
+    padding: 0; /* הסרת padding */
 }
 
 @keyframes fadeIn {
@@ -399,21 +400,56 @@ body {
     width: 90%;
     max-height: 80vh;
     overflow-y: auto;
-    position: relative;
+    position: fixed; /* שינוי ל-fixed */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     animation: slideUp 0.3s ease;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); /* צל חזק יותר */
 }
 
 @keyframes slideUp {
     from {
-        transform: translateY(50px);
+        transform: translate(-50%, -50%) translateY(50px);
         opacity: 0;
     }
     to {
-        transform: translateY(0);
+        transform: translate(-50%, -50%) translateY(0);
         opacity: 1;
     }
 }
 
+/* Scrollbar עבור תוכן ארוך */
+.settings-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.settings-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.settings-content::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+}
+
+.settings-content::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* וודא שהחלון נשאר במרכז גם ב-mobile */
+@media (max-width: 768px) {
+    .settings-modal.active {
+        padding: 10px;
+    }
+    
+    .settings-content {
+        width: 95%;
+        max-height: 90vh;
+        padding: 20px;
+    }
+}
 .settings-header {
     display: flex;
     justify-content: space-between;
