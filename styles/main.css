@@ -993,3 +993,53 @@ body {
 .alert {
     animation: slideDown 0.3s ease;
 }
+
+
+
+
+/* עיצוב לכפתטר שמור בענן */
+
+.cloud-button {
+    background: linear-gradient(135deg, #17a2b8, #138496);
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+}
+
+.cloud-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 15px rgba(23, 162, 184, 0.3);
+}
+
+.cloud-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* אנימציה לכניסת הודעת הצלחה */
+@keyframes slideDown {
+    from {
+        transform: translateX(-50%) translateY(-30px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+    }
+}
+
+/* הודעת הצלחה של שמירה בענן */
+.cloud-save-success {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10000;
+    animation: slideDown 0.3s ease;
+}
