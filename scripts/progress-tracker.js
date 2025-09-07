@@ -236,34 +236,26 @@ class TranscriptionProgressTracker {
     
     // פורמט טקסט סטטוס
     formatStatus(elapsed, eta, progress) {
-        const elapsedStr = this.formatTime(elapsed);
-        let status = `מעבד... | ${progress.toFixed(1)}% | זמן שעבר: ${elapsedStr}`;
-        
-        if (eta === null) {
-            status += ' | מחשב זמן משוער...';
-        } else if (eta === 0) {
-            status += ' | כמעט מסתיים...';
-        } else {
-            const remainingStr = this.formatTime(eta);
-            status += ` | נותר (משוער): ${remainingStr}`;
-            
-            // הוספת מהירות עיבוד
-            const speed = this.calculateAverageSpeed();
-            if (speed > 0) {
-                const speedStr = this.formatFileSize(speed);
-                status += ` | מהירות: ${speedStr}/s`;
-            }
-        }
-        
-        // הוספת אזהרה אם תקוע
-        const timeSinceLastProgress = Date.now() - this.lastProgressTime;
-        if (timeSinceLastProgress > this.STUCK_TIMEOUT / 2) {
-            const stuckTime = this.formatTime(timeSinceLastProgress);
-            status += ` | ⚠️ אין התקדמות כבר ${stuckTime}`;
-        }
-        
-        return status;
+    const elapsedStr = this.formatTime(elapsed);
+    let status = `מעבד... | ${progress.toFixed(1)}% | זמן שעבר: ${elapsedStr}`;
+    
+    // פשוט לא מציגים זמן משוער כי הוא לא מדויק
+    // במקום זה, רק מראים את המהירות הנוכחית אם יש
+    const speed = this.calculateAverageSpeed();
+    if (speed > 0) {
+        const speedStr = this.formatFileSize(speed);
+        status += ` | מהירות: ${speedStr}/s`;
     }
+    
+    // הוספת אזהרה אם תקוע
+    const timeSinceLastProgress = Date.now() - this.lastProgressTime;
+    if (timeSinceLastProgress > this.STUCK_TIMEOUT / 2) {
+        const stuckTime = this.formatTime(timeSinceLastProgress);
+        status += ` | ⚠️ אין התקדמות כבר ${stuckTime}`;
+    }
+    
+    return status;
+}
     
     // הצגת סטטוס סופי
     showFinalStatus(success, totalTime) {
