@@ -7,6 +7,20 @@ async function improveText(text, apiKey) {
     const improveModelSelect = document.getElementById('improveModelSelect');
     const selectedModel = improveModelSelect ? improveModelSelect.value : 'gpt-4o';
     
+    // קבלת ההקשר מהשדה החדש
+    const contextField = document.getElementById('contextField');
+    const context = contextField ? contextField.value.trim() : '';
+    
+    // בניית הודעת המערכת עם או בלי הקשר
+    let systemMessage = 'אתה עורך טקסט מקצועי בעברית. המשימה שלך היא לתקן שגיאות דקדוק, כתיב, פיסוק ולהשלים מילים חסרות בטקסט שקיבלת מתמלול אודיו. שמור על המשמעות המקורית והתוכן, רק תקן שגיאות ושפר את הקריאות. תקן גם מילים שנשמעו לא נכון או לא מובנות.';
+    
+    let userMessage = `אנא תקן ושפר את הטקסט הבא מתמלול אודיו:\n\n${text}`;
+    
+    if (context) {
+        systemMessage += '\n\nמידע רקע חשוב על התמלול: ' + context;
+        userMessage = `הקשר: ${context}\n\n` + userMessage;
+    }
+    
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -17,10 +31,10 @@ async function improveText(text, apiKey) {
             model: selectedModel,
             messages: [{
                 role: 'system',
-                content: 'אתה עורך טקסט מקצועי בעברית. המשימה שלך היא לתקן שגיאות הקדוק, כתיב, פיסוק ולהשלים מילים חסרות בטקסט שקיבלת מתמלול אודיו. שמור על המשמעות המקורית והתוכן, רק תקן שגיאות ותשפר את הקריאות. תקן גם מילים שנשמעו לא נכון או לא מובנות.'
+                content: systemMessage
             }, {
                 role: 'user',
-                content: `אנא תקן ותשפר את הטקסט הבא מתמלול אודיו:\n\n${text}`
+                content: userMessage
             }],
             max_tokens: 4000,
             temperature: 0.2
