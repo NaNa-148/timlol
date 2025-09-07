@@ -5,6 +5,7 @@
 
 // משתנה גלובלי לשמירת הטיימר
 let globalProgressTimer = null;
+let transcriptionStartTime = null;
 
 async function performIvritTranscription(file, runpodApiKey, endpointId, workerUrl) {
   if (!runpodApiKey || !endpointId || !workerUrl) {
@@ -14,6 +15,9 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
 
   const safeName = (file.name || 'audio').replace(/[^\w.\-]+/g, '_');
   
+  // שמירת גודל הקובץ לחישוב התקדמות
+  const fileSizeMB = file.size / (1024 * 1024);
+  
   // בחירה אוטומטית: גדול מ-9MB → העלאה ל-R2
   const isLargeFile = file.size > 9 * 1024 * 1024;
   
@@ -21,7 +25,7 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
   
   if (isLargeFile) {
     // ========== קובץ גדול - העלאה ל-R2 ==========
-    const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+    const sizeMB = fileSizeMB.toFixed(1);
     showStatus(`מעלה קובץ גדול (${sizeMB}MB) לאחסון...`, 'processing');
     
     try {
@@ -126,10 +130,12 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
       throw new Error('השרת לא החזיר תוצאה וגם לא מזהה משימה (jobId)');
     }
 
-    // התחלת טיימר עם ספירה לאחור
-    const startTime = Date.now();
-    const maxTime = 1200_000; // 20 דקות
+    // התחלת טיימר עם ספירה לאחור חכמה
+    transcriptionStartTime = Date.now();
     let currentProgress = 30;
+    let processedMB = 0;
+    let lastProgressUpdate = Date.now();
+    let estimatedTotalTime = 1200_000; // התחלה עם 20 דקות כברירת מחדל
     
     // ניקוי טיימר קודם אם קיים
     if (globalProgressTimer) {
@@ -137,41 +143,66 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
       globalProgressTimer = null;
     }
 
-    // עדכון הבר עם טיימר
+    // עדכון הבר עם טיימר חכם
     globalProgressTimer = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      const remaining = Math.max(0, maxTime - elapsed);
+      const elapsed = Date.now() - transcriptionStartTime;
       
-      // חישוב התקדמות לפי זמן שעבר
-      currentProgress = 30 + (elapsed / maxTime) * 68; // מ-30% עד 98%
-      if (currentProgress > 98) currentProgress = 98;
+      // חישוב קצב התקדמות דינמי
+      if (elapsed > 10000 && currentProgress > 30) { // אחרי 10 שניות לפחות
+        // חישוב כמה MB עובדו עד כה (הערכה לפי אחוז התקדמות)
+        processedMB = (currentProgress - 30) / 68 * fileSizeMB;
+        
+        if (processedMB > 0) {
+          // חישוב קצב עיבוד (MB לשנייה)
+          const processingRate = processedMB / (elapsed / 1000);
+          
+          // חישוב זמן משוער לסיום על סמך הקצב הנוכחי
+          const remainingMB = fileSizeMB - processedMB;
+          const estimatedRemainingTime = (remainingMB / processingRate) * 1000;
+          
+          // עדכון הזמן המשוער הכולל
+          estimatedTotalTime = elapsed + estimatedRemainingTime;
+        }
+      }
+      
+      // חישוב התקדמות לפי זמן שעבר ביחס לזמן המשוער
+      if (estimatedTotalTime > 0) {
+        currentProgress = Math.min(98, 30 + (elapsed / estimatedTotalTime) * 68);
+      }
       
       // עדכון הבר
       const progressFill = document.getElementById('progressFill');
       if (progressFill) {
-        progressFill.style.width = `${currentProgress}%`;
+        progressFill.style.width = `${currentProgress.toFixed(1)}%`;
       }
       
-      // הצגת זמן
+      // חישוב זמנים לתצוגה
       const elapsedMin = Math.floor(elapsed / 60000);
       const elapsedSec = Math.floor((elapsed % 60000) / 1000);
+      
+      const remaining = Math.max(0, estimatedTotalTime - elapsed);
       const remainingMin = Math.floor(remaining / 60000);
       const remainingSec = Math.floor((remaining % 60000) / 1000);
       
+      // חישוב קצב עיבוד לתצוגה
+      let rateInfo = '';
+      if (processedMB > 0 && elapsed > 10000) {
+        const rate = (processedMB / (elapsed / 1000)).toFixed(2);
+        rateInfo = ` | קצב: ${rate} MB/s`;
+      }
+      
       showStatus(
-        `מעבד... | זמן שעבר: ${elapsedMin}:${elapsedSec.toString().padStart(2, '0')} | נותר (משוער): ${remainingMin}:${remainingSec.toString().padStart(2, '0')}`, 
+        `מעבד... | זמן שעבר: ${elapsedMin}:${elapsedSec.toString().padStart(2, '0')} | נותר (משוער): ${remainingMin}:${remainingSec.toString().padStart(2, '0')}${rateInfo}`, 
         'processing'
       );
       
-      // עצירה אם עבר הזמן המקסימלי
-      if (elapsed >= maxTime) {
-        clearInterval(globalProgressTimer);
-        globalProgressTimer = null;
-      }
+      // עדכון אחוז התקדמות בהתאם לזמן שעבר
+      lastProgressUpdate = Date.now();
+      
     }, 1000);
 
-    const deadline = Date.now() + 1200_000; // 20 דקות
-    while (Date.now() < deadline) {
+    // Polling ללא הגבלת זמן קשיחה - ממשיך לפי הזמן המשוער
+    while (true) {
       await delay(2000);
 
       // Polling עם GET
@@ -226,21 +257,22 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
         }
         throw new Error('סיום דווח אך אין תמלול בתשובה');
       }
-    }
-
-    if (!transcript) {
-      // עצירת הטיימר במקרה של timeout
-      if (globalProgressTimer) {
-        clearInterval(globalProgressTimer);
-        globalProgressTimer = null;
+      
+      // בדיקה אם עבר זמן ארוך מדי (למשל 60 דקות)
+      const elapsed = Date.now() - transcriptionStartTime;
+      if (elapsed > 3600_000) { // שעה
+        if (globalProgressTimer) {
+          clearInterval(globalProgressTimer);
+          globalProgressTimer = null;
+        }
+        throw new Error('התמלול לוקח יותר מדי זמן (מעל שעה)');
       }
-      throw new Error('חריגה מזמן ההמתנה לתמלול (timeout)');
     }
   }
 
   // ========== הצגת תוצאות ==========
   // עצירת הטיימר והצגת זמן סופי
-  const finalTime = Date.now() - (window.transcriptionStartTime || Date.now());
+  const finalTime = Date.now() - (transcriptionStartTime || Date.now());
   const finalMinutes = Math.floor(finalTime / 60000);
   const finalSeconds = Math.floor((finalTime % 60000) / 1000);
   
@@ -248,9 +280,6 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
     clearInterval(globalProgressTimer);
     globalProgressTimer = null;
   }
-  
-  // שמירת זמן התחלה למקרה הבא
-  window.transcriptionStartTime = Date.now();
   
   transcriptResult = {
     text: transcript.text,
@@ -263,7 +292,12 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
   displayResults();
   
   // הצגת הודעת סיום עם הזמן הסופי
-  showStatus(`התמלול הושלם בהצלחה ✔️ | זמן כולל: ${finalMinutes}:${finalSeconds.toString().padStart(2, '0')}`, 'success');
+  const sizeMB = fileSizeMB.toFixed(1);
+  const rate = finalTime > 0 ? (fileSizeMB / (finalTime / 1000)).toFixed(2) : 0;
+  showStatus(
+    `התמלול הושלם בהצלחה ✔️ | זמן כולל: ${finalMinutes}:${finalSeconds.toString().padStart(2, '0')} | גודל: ${sizeMB}MB | קצב ממוצע: ${rate} MB/s`, 
+    'success'
+  );
 }
 
 // ===== פונקציות עזר (ללא שינוי) =====
