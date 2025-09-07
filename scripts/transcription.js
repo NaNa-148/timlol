@@ -12,7 +12,17 @@ async function selectTranscriptionService(file, apiKey) {
             const runpodApiKey = document.getElementById('runpodApiKey').value.trim();
             const endpointId = document.getElementById('endpointId').value.trim();
             const workerUrl = document.getElementById('workerUrl').value.trim();
-            return await performIvritTranscription(file, runpodApiKey, endpointId, workerUrl);
+            
+            // בדיקה אם הפונקציה קיימת
+            if (typeof window.performIvritTranscription === 'function') {
+                return await window.performIvritTranscription(file, runpodApiKey, endpointId, workerUrl);
+            } else if (typeof performIvritTranscription === 'function') {
+                return await performIvritTranscription(file, runpodApiKey, endpointId, workerUrl);
+            } else {
+                console.error('performIvritTranscription is not defined');
+                throw new Error('פונקציית תמלול ivrit.ai לא נמצאה. נסה לרענן את הדף.');
+            }
+            
         case 'openai':
         default:
             return await performTranscription(file, apiKey);
@@ -90,7 +100,7 @@ async function performTranscription(file, apiKey) {
 
 // הצגת תוצאות התמלול
 function displayResults() {
-    if (!transcriptResult || !transcriptResult.segments) return;
+    if (!transcriptResult) return;
 
     const timestampToggle = document.getElementById('timestampToggle');
     const paragraphToggle = document.getElementById('paragraphToggle');
@@ -104,21 +114,29 @@ function displayResults() {
     const showParagraphs = paragraphToggle && paragraphToggle.classList.contains('active');
     const showSpeakers = speakerToggle && speakerToggle.classList.contains('active');
     
-    const separator = showParagraphs ? '\n\n' : ' ';
+    let finalResult = '';
     
-    let finalResult = transcriptResult.segments.map(segment => {
-        let line = segment.text.trim();
-        if (showTimestamps) {
-            const time = formatVttTime(segment.start).substring(0, 8); // HH:MM:SS
-            line = `[${time}] ${line}`;
-        }
-        return line;
-    }).join(separator);
+    // בדיקה אם יש segments
+    if (transcriptResult.segments && transcriptResult.segments.length > 0) {
+        const separator = showParagraphs ? '\n\n' : ' ';
+        
+        finalResult = transcriptResult.segments.map(segment => {
+            let line = segment.text.trim();
+            if (showTimestamps) {
+                const time = formatVttTime(segment.start).substring(0, 8); // HH:MM:SS
+                line = `[${time}] ${line}`;
+            }
+            return line;
+        }).join(separator);
 
-    if (showSpeakers && !showParagraphs) {
-        finalResult = 'משתתף 1: ' + finalResult;
-    } else if (showSpeakers && showParagraphs) {
-        finalResult = finalResult.replace(/\[/g, 'משתתף 1: [');
+        if (showSpeakers && !showParagraphs) {
+            finalResult = 'משתתף 1: ' + finalResult;
+        } else if (showSpeakers && showParagraphs) {
+            finalResult = finalResult.replace(/\[/g, 'משתתף 1: [');
+        }
+    } else {
+        // אם אין segments, השתמש בטקסט הרגיל
+        finalResult = transcriptResult.text;
     }
 
     if (transcriptTextElement) {
