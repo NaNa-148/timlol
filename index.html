@@ -260,74 +260,25 @@
         <button id="resetButton" class="reset-button">איפוס מלא</button>
     </div>
 
-    <!-- Load scripts -->
-   <script>
-    // ביטול מוחלט של כל ההתראות - חייב להיות ראשון!
-    (function() {
-        // מחליף את window.alert
-        window.alert = function() { return false; };
-        
-        // מטפל בשגיאות
-        window.addEventListener('error', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            return true;
-        }, true);
-        
-        // מטפל בהבטחות שנכשלו
-        window.addEventListener('unhandledrejection', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            return true;
-        }, true);
-        
-        // משתיק console
-        if (typeof console !== 'undefined') {
-            const noop = function() {};
-            console.error = noop;
-            console.warn = noop;
-            console.log = noop;
-        }
-    })();
-</script>
-
-<script src="scripts/storage.js"></script>
-<script src="scripts/audio-processor.js"></script>
-<script src="scripts/waveform.js"></script>
-<script src="scripts/ui-helpers.js"></script>
-<script src="scripts/file-handler.js"></script>
-<script src="scripts/ivrit-transcription.js"></script> <!-- הועבר לפני transcription.js -->
-<script src="scripts/transcription.js"></script> <!-- עכשיו אחרי ivrit-transcription.js -->
-<script src="scripts/text-improvement.js"></script>
-<script src="scripts/export-download.js"></script>
-<script src="scripts/save-to-cloud.js"></script> <!-- חדש -->
-<script src="scripts/transcript-stats.js"></script> <!-- חדש -->
-<script src="scripts/event-listeners.js"></script>
-<script src="scripts/main.js"></script>
+    <!-- Load scripts in correct order -->
+    <script src="scripts/storage.js"></script>
+    <script src="scripts/audio-processor.js"></script>
+    <script src="scripts/waveform.js"></script>
+    <script src="scripts/ui-helpers.js"></script>
+    <script src="scripts/file-handler.js"></script>
+    <script src="scripts/ivrit-transcription.js"></script>
+    <script src="scripts/transcription.js"></script>
+    <script src="scripts/text-improvement.js"></script>
+    <script src="scripts/export-download.js"></script>
+    <script src="scripts/event-listeners.js"></script>
+    <script src="scripts/main.js"></script>
     
-    <!-- סקריפט לטיפול בסיסמה ואתחול -->
+    <!-- סקריפט לטיפול בסיסמה - מאוחד עם האתחול הראשי -->
     <script>
-        // השתקת כל השגיאות של פונקציות לא מוגדרות
-        window.addEventListener('error', function(e) {
-            if (e.message && (e.message.includes('is not defined') || e.message.includes('נשיאה בטעינת'))) {
-                e.preventDefault();
-                e.stopPropagation();
-                return true;
-            }
-        }, true);
+        // מניעת אתחול כפול מ-main.js
+        window.preventMainInit = true;
         
-        // השתקת console errors
-        const originalError = console.error;
-        console.error = function() {
-            const args = Array.from(arguments);
-            if (args.some(arg => String(arg).includes('is not defined'))) {
-                return;
-            }
-            originalError.apply(console, arguments);
-        };
-        
+        // טיפול בסיסמה ואתחול מאוחד
         document.addEventListener('DOMContentLoaded', function() {
             const passwordScreen = document.getElementById('passwordScreen');
             const passwordInput = document.getElementById('passwordInput');
@@ -335,24 +286,33 @@
             const passwordError = document.getElementById('passwordError');
             const mainContainer = document.getElementById('mainContainer');
             
+            // פונקציה לאתחול המערכת אחרי כניסה
+            function initializeAfterLogin() {
+                // קריאה לפונקציית האתחול הראשית
+                if (typeof initApp === 'function') {
+                    initApp();
+                }
+                
+                // בדיקת סטטוס הגדרות
+                if (typeof checkConfigurationStatus === 'function') {
+                    setTimeout(checkConfigurationStatus, 100);
+                }
+            }
+            
             // בדיקה אם כבר נכנסו בעבר
             const isAuthenticated = sessionStorage.getItem('authenticated') === 'true';
             
             if (isAuthenticated) {
+                // משתמש כבר מאומת - הצג את האפליקציה ואתחל
                 if (passwordScreen) passwordScreen.style.display = 'none';
                 if (mainContainer) mainContainer.style.display = 'block';
                 
-                // אתחול המערכת אחרי הכניסה
-                setTimeout(function() {
-                    if (typeof checkConfigurationStatus === 'function') {
-                        checkConfigurationStatus();
-                    }
-                    initializeEventHandlers();
-                }, 100);
+                // אתחול המערכת
+                initializeAfterLogin();
                 return;
             }
             
-            // הצגת מסך סיסמה
+            // הצגת מסך סיסמה למשתמש לא מאומת
             if (passwordScreen) {
                 passwordScreen.style.display = 'flex';
             }
@@ -360,33 +320,34 @@
                 mainContainer.style.display = 'none';
             }
             
-            if (passwordButton && passwordInput) {
-                // בדיקת סיסמה בלחיצת כפתור
-                passwordButton.addEventListener('click', function() {
-                    if (passwordInput.value === '148148') {
-                        sessionStorage.setItem('authenticated', 'true');
-                        if (passwordScreen) passwordScreen.style.display = 'none';
-                        if (mainContainer) mainContainer.style.display = 'block';
-                        if (passwordError) passwordError.style.display = 'none';
-                        
-                        // אתחול המערכת לאחר כניסה
-                        setTimeout(function() {
-                            if (typeof checkConfigurationStatus === 'function') {
-                                checkConfigurationStatus();
-                            }
-                            initializeEventHandlers();
-                        }, 100);
-                    } else {
-                        if (passwordError) passwordError.style.display = 'block';
-                        passwordInput.value = '';
-                        passwordInput.focus();
-                    }
-                });
-                
-                // בדיקת סיסמה בלחיצת Enter
+            // פונקציית בדיקת סיסמה
+            function checkPassword() {
+                if (passwordInput.value === '148148') {
+                    // סיסמה נכונה
+                    sessionStorage.setItem('authenticated', 'true');
+                    if (passwordScreen) passwordScreen.style.display = 'none';
+                    if (mainContainer) mainContainer.style.display = 'block';
+                    if (passwordError) passwordError.style.display = 'none';
+                    
+                    // אתחול המערכת אחרי כניסה מוצלחת
+                    initializeAfterLogin();
+                } else {
+                    // סיסמה שגויה
+                    if (passwordError) passwordError.style.display = 'block';
+                    passwordInput.value = '';
+                    passwordInput.focus();
+                }
+            }
+            
+            // מאזינים לכפתור ולמקש Enter
+            if (passwordButton) {
+                passwordButton.addEventListener('click', checkPassword);
+            }
+            
+            if (passwordInput) {
                 passwordInput.addEventListener('keypress', function(e) {
                     if (e.key === 'Enter') {
-                        passwordButton.click();
+                        checkPassword();
                     }
                 });
                 
@@ -396,160 +357,6 @@
                 }, 100);
             }
         });
-        
-        // פונקציה לאתחול כל המאזינים אחרי הכניסה
-        function initializeEventHandlers() {
-            // כפתור הסרת קובץ
-            const removeFileBtn = document.getElementById('removeFileBtn');
-            if (removeFileBtn) {
-                removeFileBtn.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    if (confirm('האם להסיר את הקובץ?')) {
-                        // איפוס הקבצים
-                        if (typeof clearFiles === 'function') {
-                            clearFiles();
-                        } else {
-                            // איפוס ידני אם הפונקציה לא זמינה
-                            selectedFile = null;
-                            processedFile = null;
-                            
-                            const fileInfo = document.getElementById('fileInfo');
-                            const audioPreview = document.getElementById('audioPreview');
-                            const audioPlayer = document.getElementById('audioPlayer');
-                            const fileInput = document.getElementById('fileInput');
-                            
-                            if (fileInfo) fileInfo.style.display = 'none';
-                            if (audioPreview) audioPreview.style.display = 'none';
-                            if (audioPlayer) audioPlayer.src = '';
-                            if (fileInput) fileInput.value = '';
-                            
-                            if (typeof clearWaveform === 'function') {
-                                clearWaveform();
-                            }
-                            if (typeof checkButtonsState === 'function') {
-                                checkButtonsState();
-                            }
-                        }
-                        
-                        if (typeof showStatus === 'function') {
-                            showStatus('הקובץ הוסר', 'success');
-                            setTimeout(function() {
-                                if (typeof hideStatus === 'function') {
-                                    hideStatus();
-                                }
-                            }, 2000);
-                        }
-                    }
-                });
-            }
-            
-            // קוביות בחירת שירות
-            const serviceCards = document.querySelectorAll('.service-card');
-            serviceCards.forEach(card => {
-                card.addEventListener('click', function() {
-                    // הסרת בחירה מכל הכרטיסים
-                    serviceCards.forEach(c => c.classList.remove('selected'));
-                    
-                    // הוספת בחירה לכרטיס הנוכחי
-                    this.classList.add('selected');
-                    
-                    // עדכון הערך בselect המוסתר
-                    const service = this.dataset.service;
-                    const transcriptionSelect = document.getElementById('transcriptionService');
-                    if (transcriptionSelect) {
-                        transcriptionSelect.value = service;
-                        const event = new Event('change', { bubbles: true });
-                        transcriptionSelect.dispatchEvent(event);
-                    }
-                    
-                    // עדכון תצוגת בחירת שפה
-                    const languageSelectionDiv = document.getElementById('languageSelectionDiv');
-                    if (languageSelectionDiv) {
-                        languageSelectionDiv.style.display = service === 'openai' ? 'block' : 'none';
-                    }
-                    
-                    if (typeof checkButtonsState === 'function') {
-                        checkButtonsState();
-                    }
-                });
-            });
-            
-            // כפתור הגדרות - תמיד במרכז המסך
-            const settingsButton = document.getElementById('settingsButton');
-            const settingsModal = document.getElementById('settingsModal');
-            const closeSettings = document.getElementById('closeSettings');
-            const saveSettings = document.getElementById('saveSettings');
-            
-            if (settingsButton && settingsModal) {
-                settingsButton.addEventListener('click', function() {
-                    settingsModal.classList.add('active');
-                });
-            }
-            
-            if (closeSettings && settingsModal) {
-                closeSettings.addEventListener('click', function() {
-                    settingsModal.classList.remove('active');
-                });
-            }
-            
-            if (settingsModal) {
-                settingsModal.addEventListener('click', function(e) {
-                    if (e.target === settingsModal) {
-                        settingsModal.classList.remove('active');
-                    }
-                });
-            }
-            
-            if (saveSettings) {
-                saveSettings.addEventListener('click', function() {
-                    // שמירת הגדרות OpenAI
-                    const apiKey = document.getElementById('apiKey');
-                    if (apiKey && apiKey.value.trim()) {
-                        if (typeof storage !== 'undefined' && storage.saveApiKey) {
-                            storage.saveApiKey(apiKey.value.trim());
-                        }
-                    }
-                    
-                    // שמירת הגדרות ivrit.ai
-                    const runpodApiKey = document.getElementById('runpodApiKey');
-                    const endpointId = document.getElementById('endpointId');
-                    const workerUrl = document.getElementById('workerUrl');
-                    
-                    if (runpodApiKey && endpointId && workerUrl) {
-                        const runpod = runpodApiKey.value.trim();
-                        const endpoint = endpointId.value.trim();
-                        const worker = workerUrl.value.trim();
-                        
-                        if (runpod && endpoint && worker) {
-                            if (typeof storage !== 'undefined' && storage.saveIvritAiCredentials) {
-                                storage.saveIvritAiCredentials(runpod, endpoint, worker);
-                            }
-                        }
-                    }
-                    
-                    // סגירת החלון
-                    if (settingsModal) settingsModal.classList.remove('active');
-                    
-                    // עדכון מצב כפתורים
-                    if (typeof checkButtonsState === 'function') {
-                        checkButtonsState();
-                    }
-                    if (typeof checkConfigurationStatus === 'function') {
-                        checkConfigurationStatus();
-                    }
-                    
-                    // הודעת הצלחה
-                    if (typeof showStatus === 'function') {
-                        showStatus('ההגדרות נשמרו בהצלחה ✓', 'success');
-                        setTimeout(function() {
-                            if (typeof hideStatus === 'function') {
-                                hideStatus();
-                            }
-                        }, 3000);
-                    }
-                });
-            }
-        }
     </script>
 </body>
 </html>
