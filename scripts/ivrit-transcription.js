@@ -3,6 +3,9 @@
 // ✅ קבצים קטנים (<9MB) - base64 רגיל
 // ✅ קבצים גדולים (>9MB) - העלאה ל-R2 ושימוש ב-URL
 
+// משתנה גלובלי לשמירת הטיימר
+let globalProgressTimer = null;
+
 async function performIvritTranscription(file, runpodApiKey, endpointId, workerUrl) {
   if (!runpodApiKey || !endpointId || !workerUrl) {
     throw new Error('חסרים פרטי חיבור (RunPod API Key / Endpoint ID / Worker URL)');
@@ -24,11 +27,11 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
     try {
       // שליחת הקובץ הבינארי ישירות ל-Worker
       // וודא שאין סלאש כפול
-const uploadUrl = workerUrl.endsWith('/') 
-  ? `${workerUrl}upload?name=${encodeURIComponent(safeName)}`
-  : `${workerUrl}/upload?name=${encodeURIComponent(safeName)}`;
+      const uploadUrl = workerUrl.endsWith('/') 
+        ? `${workerUrl}upload?name=${encodeURIComponent(safeName)}`
+        : `${workerUrl}/upload?name=${encodeURIComponent(safeName)}`;
 
-const uploadRes = await fetch(uploadUrl, {
+      const uploadRes = await fetch(uploadUrl, {
         method: 'PUT',
         headers: {
           'Content-Type': file.type || 'audio/wav',
@@ -124,43 +127,50 @@ const uploadRes = await fetch(uploadUrl, {
     }
 
     // התחלת טיימר עם ספירה לאחור
-const startTime = Date.now();
-const maxTime = 1200_000; // 20 דקות
-let currentProgress = 30;
-
-// עדכון הבר עם טיימר
-const progressTimer = setInterval(() => {
-    const elapsed = Date.now() - startTime;
-    const remaining = Math.max(0, maxTime - elapsed);
+    const startTime = Date.now();
+    const maxTime = 1200_000; // 20 דקות
+    let currentProgress = 30;
     
-    // חישוב התקדמות לפי זמן שעבר
-    currentProgress = 30 + (elapsed / maxTime) * 68; // מ-30% עד 98%
-    if (currentProgress > 98) currentProgress = 98;
-    
-    // עדכון הבר
-    const progressFill = document.getElementById('progressFill');
-    if (progressFill) {
-        progressFill.style.width = `${currentProgress}%`;
+    // ניקוי טיימר קודם אם קיים
+    if (globalProgressTimer) {
+      clearInterval(globalProgressTimer);
+      globalProgressTimer = null;
     }
-    
-    // הצגת זמן
-    const elapsedMin = Math.floor(elapsed / 60000);
-    const elapsedSec = Math.floor((elapsed % 60000) / 1000);
-    const remainingMin = Math.floor(remaining / 60000);
-    const remainingSec = Math.floor((remaining % 60000) / 1000);
-    
-    showStatus(
+
+    // עדכון הבר עם טיימר
+    globalProgressTimer = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, maxTime - elapsed);
+      
+      // חישוב התקדמות לפי זמן שעבר
+      currentProgress = 30 + (elapsed / maxTime) * 68; // מ-30% עד 98%
+      if (currentProgress > 98) currentProgress = 98;
+      
+      // עדכון הבר
+      const progressFill = document.getElementById('progressFill');
+      if (progressFill) {
+        progressFill.style.width = `${currentProgress}%`;
+      }
+      
+      // הצגת זמן
+      const elapsedMin = Math.floor(elapsed / 60000);
+      const elapsedSec = Math.floor((elapsed % 60000) / 1000);
+      const remainingMin = Math.floor(remaining / 60000);
+      const remainingSec = Math.floor((remaining % 60000) / 1000);
+      
+      showStatus(
         `מעבד... | זמן שעבר: ${elapsedMin}:${elapsedSec.toString().padStart(2, '0')} | נותר (משוער): ${remainingMin}:${remainingSec.toString().padStart(2, '0')}`, 
         'processing'
-    );
-    
-    // עצירה אם עבר הזמן המקסימלי
-    if (elapsed >= maxTime) {
-        clearInterval(progressTimer);
-    }
-}, 1000);
+      );
+      
+      // עצירה אם עבר הזמן המקסימלי
+      if (elapsed >= maxTime) {
+        clearInterval(globalProgressTimer);
+        globalProgressTimer = null;
+      }
+    }, 1000);
 
-    const deadline = Date.now() + 1200_000; // 3 דקות
+    const deadline = Date.now() + 1200_000; // 20 דקות
     while (Date.now() < deadline) {
       await delay(2000);
 
@@ -176,6 +186,11 @@ const progressTimer = setInterval(() => {
 
       if (!pollRes.ok) {
         const errText = await pollRes.text().catch(() => '');
+        // עצירת הטיימר במקרה של שגיאה
+        if (globalProgressTimer) {
+          clearInterval(globalProgressTimer);
+          globalProgressTimer = null;
+        }
         throw new Error(`Polling נכשל: ${pollRes.status} – ${errText}`);
       }
 
@@ -192,6 +207,11 @@ const progressTimer = setInterval(() => {
         const reason = pollData?.error || pollData?.data?.error ||
                        pollData?.output?.error || pollData?.result?.error;
         console.debug('Polling failed payload:', pollData);
+        // עצירת הטיימר במקרה של כישלון
+        if (globalProgressTimer) {
+          clearInterval(globalProgressTimer);
+          globalProgressTimer = null;
+        }
         throw new Error(`המשימה נכשלה בצד הספק (status=${status})${reason ? ` – ${reason}` : ''}`);
       }
 
@@ -199,14 +219,39 @@ const progressTimer = setInterval(() => {
         transcript = extractTranscript(pollData);
         if (transcript) break;
         console.debug('Completed but no transcript field:', pollData);
+        // עצירת הטיימר אם הושלם אבל אין תמלול
+        if (globalProgressTimer) {
+          clearInterval(globalProgressTimer);
+          globalProgressTimer = null;
+        }
         throw new Error('סיום דווח אך אין תמלול בתשובה');
       }
     }
 
-    if (!transcript) throw new Error('חריגה מזמן ההמתנה לתמלול (timeout)');
+    if (!transcript) {
+      // עצירת הטיימר במקרה של timeout
+      if (globalProgressTimer) {
+        clearInterval(globalProgressTimer);
+        globalProgressTimer = null;
+      }
+      throw new Error('חריגה מזמן ההמתנה לתמלול (timeout)');
+    }
   }
 
   // ========== הצגת תוצאות ==========
+  // עצירת הטיימר והצגת זמן סופי
+  const finalTime = Date.now() - (window.transcriptionStartTime || Date.now());
+  const finalMinutes = Math.floor(finalTime / 60000);
+  const finalSeconds = Math.floor((finalTime % 60000) / 1000);
+  
+  if (globalProgressTimer) {
+    clearInterval(globalProgressTimer);
+    globalProgressTimer = null;
+  }
+  
+  // שמירת זמן התחלה למקרה הבא
+  window.transcriptionStartTime = Date.now();
+  
   transcriptResult = {
     text: transcript.text,
     segments: Array.isArray(transcript.segments) && transcript.segments.length
@@ -214,13 +259,11 @@ const progressTimer = setInterval(() => {
       : [{ start: 0, end: 0, text: transcript.text }]
   };
 
-if (typeof progressTimer !== 'undefined') {
-    clearInterval(progressTimer);
-}
-
   finalizeProgress();
   displayResults();
-  showStatus('התמלול הושלם בהצלחה ✔️', 'success');
+  
+  // הצגת הודעת סיום עם הזמן הסופי
+  showStatus(`התמלול הושלם בהצלחה ✔️ | זמן כולל: ${finalMinutes}:${finalSeconds.toString().padStart(2, '0')}`, 'success');
 }
 
 // ===== פונקציות עזר (ללא שינוי) =====
@@ -276,7 +319,7 @@ function extractTranscript(obj) {
   // טיפול רגיל למבנים אחרים
   const core = obj.output || obj.result || obj.data || obj;
   if (typeof core === 'string') return { text: core };
-  const text = core?.text ?? core?.transcription ?? core?.transcript ?? core?.output ?? core?.result;
+  const text = core?.text ?? core?.transcription ?? core?.transcript ?? core?.output || core?.result;
   if (typeof text === 'string' && text.trim()) return { text: text.trim(), segments: core?.segments };
   const nested = core?.text?.content || core?.transcription?.content;
   if (typeof nested === 'string' && nested.trim()) return { text: nested.trim(), segments: core?.segments };
