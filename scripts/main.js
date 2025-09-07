@@ -110,6 +110,44 @@ function resetApp() {
 // אתחול האפליקציה
 function initApp() {
     try {
+        // בדיקת טעינת פונקציות קריטיות
+        const criticalFunctions = [
+            { name: 'performIvritTranscription', location: 'window.performIvritTranscription or global' },
+            { name: 'storage', location: 'global' },
+            { name: 'checkButtonsState', location: 'global' }
+        ];
+        
+        let missingFunctions = [];
+        
+        // בדיקת performIvritTranscription
+        if (typeof window.performIvritTranscription !== 'function' && typeof performIvritTranscription !== 'function') {
+            missingFunctions.push('performIvritTranscription');
+            console.error('performIvritTranscription is not defined');
+        } else {
+            console.log('✓ performIvritTranscription loaded successfully');
+        }
+        
+        // בדיקת storage
+        if (typeof storage === 'undefined') {
+            missingFunctions.push('storage');
+            console.error('storage is not defined');
+        } else {
+            console.log('✓ storage loaded successfully');
+        }
+        
+        // בדיקת checkButtonsState
+        if (typeof checkButtonsState !== 'function') {
+            missingFunctions.push('checkButtonsState');
+            console.error('checkButtonsState is not defined');
+        } else {
+            console.log('✓ checkButtonsState loaded successfully');
+        }
+        
+        if (missingFunctions.length > 0) {
+            console.warn('Missing functions:', missingFunctions);
+            console.warn('Some features may not work properly. Try refreshing the page.');
+        }
+        
         // טעינת מפתח API שמור
         storage.loadApiKey();
 
@@ -127,10 +165,12 @@ function initApp() {
         
         // הדפסת הודעה לקונסולה
         console.log('Hebrew Transcription App loaded successfully! 🚀');
+        console.log('Available transcription services:', typeof window.performIvritTranscription === 'function' ? 'OpenAI + ivrit.ai' : 'OpenAI only');
         
     } catch (error) {
         console.error('Error initializing app:', error);
-        alert('שגיאה בטעינת האפליקציה: ' + error.message);
+        // לא מציגים alert - רק console
+        console.error('Initialization error details:', error.message);
     }
 }
 
