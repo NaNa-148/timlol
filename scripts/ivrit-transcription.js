@@ -279,6 +279,39 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
     }
   }
 
+  // פונקציה חדשה לחילוץ אחוז התקדמות מתשובת השרת
+  function extractProgress(obj) {
+    if (!obj || typeof obj !== 'object') return null;
+    
+    // חיפוש בכל המיקומים האפשריים
+    const possibleFields = [
+      obj.progress,
+      obj.percent,
+      obj.percentage,
+      obj.completion,
+      obj.data?.progress,
+      obj.data?.percent,
+      obj.output?.progress,
+      obj.status?.progress,
+      obj.result?.progress
+    ];
+    
+    for (const field of possibleFields) {
+      if (typeof field === 'number' && field >= 0 && field <= 100) {
+        return field;
+      }
+      // אם זה string שמייצג מספר
+      if (typeof field === 'string') {
+        const num = parseFloat(field);
+        if (!isNaN(num) && num >= 0 && num <= 100) {
+          return num;
+        }
+      }
+    }
+    
+    return null;
+  }
+
   // ========== הצגת תוצאות והעלאת תמלול ל-R2 ==========
   transcriptResult = {
     text: transcript.text,
@@ -318,6 +351,9 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
         if (transcriptData.url) {
           // שמירת URL התמלול למקרה הצורך
           window.lastTranscriptUrl = transcriptData.url;
+          
+          // הצגת הודעה למשתמש
+          showStatus('התמלול הושלם והועלה לאחסון ✔️', 'success');
         }
       }
     } catch (error) {
@@ -333,39 +369,6 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
   finalizeProgress();
   displayResults();
   showStatus('התמלול הושלם בהצלחה ✔️', 'success');
-}
-
-// פונקציה חדשה לחילוץ אחוז התקדמות מתשובת השרת
-function extractProgress(obj) {
-  if (!obj || typeof obj !== 'object') return null;
-  
-  // חיפוש בכל המיקומים האפשריים
-  const possibleFields = [
-    obj.progress,
-    obj.percent,
-    obj.percentage,
-    obj.completion,
-    obj.data?.progress,
-    obj.data?.percent,
-    obj.output?.progress,
-    obj.status?.progress,
-    obj.result?.progress
-  ];
-  
-  for (const field of possibleFields) {
-    if (typeof field === 'number' && field >= 0 && field <= 100) {
-      return field;
-    }
-    // אם זה string שמייצג מספר
-    if (typeof field === 'string') {
-      const num = parseFloat(field);
-      if (!isNaN(num) && num >= 0 && num <= 100) {
-        return num;
-      }
-    }
-  }
-  
-  return null;
 }
 
 // ===== פונקציות עזר (ללא שינוי) =====
@@ -426,4 +429,9 @@ function extractTranscript(obj) {
   const nested = core?.text?.content || core?.transcription?.content;
   if (typeof nested === 'string' && nested.trim()) return { text: nested.trim(), segments: core?.segments };
   return null;
+}
+
+// ===== חיבור לwindow - חשוב מאוד! =====
+if (typeof window !== 'undefined') {
+  window.performIvritTranscription = performIvritTranscription;
 }
