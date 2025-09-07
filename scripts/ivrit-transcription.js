@@ -7,6 +7,7 @@
 let globalProgressTimer = null;
 let transcriptionStartTime = null;
 
+// הגדרת הפונקציה הראשית
 async function performIvritTranscription(file, runpodApiKey, endpointId, workerUrl) {
   if (!runpodApiKey || !endpointId || !workerUrl) {
     throw new Error('חסרים פרטי חיבור (RunPod API Key / Endpoint ID / Worker URL)');
@@ -300,7 +301,7 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
   );
 }
 
-// ===== פונקציות עזר (ללא שינוי) =====
+// ===== פונקציות עזר =====
 
 function stripDataUrlPrefix(dataUrl) {
   if (typeof dataUrl !== 'string') return '';
@@ -358,4 +359,14 @@ function extractTranscript(obj) {
   const nested = core?.text?.content || core?.transcription?.content;
   if (typeof nested === 'string' && nested.trim()) return { text: nested.trim(), segments: core?.segments };
   return null;
+}
+
+// ===== הגדרה גלובלית של הפונקציות =====
+// זה מוודא שהפונקציות זמינות מכל מקום בקוד
+if (typeof window !== 'undefined') {
+  window.performIvritTranscription = performIvritTranscription;
+  window.stripDataUrlPrefix = stripDataUrlPrefix;
+  window.fileToDataUrl = fileToDataUrl;
+  window.safeJson = safeJson;
+  window.extractTranscript = extractTranscript;
 }
