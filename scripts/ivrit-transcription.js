@@ -2,7 +2,6 @@
 // תמלול ivrit.ai עם תמיכה מלאה בקבצים גדולים דרך R2
 // ✅ קבצים קטנים (<9MB) - base64 רגיל
 // ✅ קבצים גדולים (>9MB) - העלאה ל-R2 ושימוש ב-URL
-// ✅ תיקון: החלפת רווחים ותווים בעייתיים בשמות קבצים
 
 async function performIvritTranscription(file, runpodApiKey, endpointId, workerUrl) {
   if (!runpodApiKey || !endpointId || !workerUrl) {
@@ -10,18 +9,8 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
   }
   if (!file) throw new Error('לא נבחר קובץ אודיו');
 
-  // פונקציה לניקוי שם קובץ
-  function cleanFileName(name) {
-    // החלפת רווחים ב-underscore והסרת תווים בעייתיים
-    return name
-      .replace(/\s+/g, '_')  // החלפת רווחים
-      .replace(/[^\w\u0590-\u05FF.-]/g, '') // השארת אנגלית, עברית, נקודה ומקף
-      .replace(/\.+/g, '.'); // מניעת נקודות כפולות
-  }
-  
-  // שמירת השם המקורי והנקי
+  // שמירת השם המקורי - ללא שינוי!
   const originalFileName = file.name || 'audio.wav';
-  const cleanedFileName = cleanFileName(originalFileName);
   
   // בחירה אוטומטית: גדול מ-9MB → העלאה ל-R2
   const isLargeFile = file.size > 9 * 1024 * 1024;
@@ -34,10 +23,10 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
     showStatus(`מעלה קובץ גדול (${sizeMB}MB) לאחסון...`, 'processing');
     
     try {
-      // שליחת הקובץ עם השם הנקי
+      // שליחת הקובץ עם השם המקורי
       const uploadUrl = workerUrl.endsWith('/') 
-        ? `${workerUrl}upload?name=${encodeURIComponent(cleanedFileName)}`
-        : `${workerUrl}/upload?name=${encodeURIComponent(cleanedFileName)}`;
+        ? `${workerUrl}upload?name=${encodeURIComponent(originalFileName)}`
+        : `${workerUrl}/upload?name=${encodeURIComponent(originalFileName)}`;
 
       const uploadRes = await fetch(uploadUrl, {
         method: 'PUT',
@@ -61,13 +50,11 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
       }
       
       console.log('קובץ הועלה בהצלחה:', uploadData.url);
-      console.log('שם מקורי:', originalFileName);
-      console.log('שם נקי:', cleanedFileName);
       
       // שימוש ב-URL במקום base64
       transcribeArgs = {
         url: uploadData.url,
-        filename: cleanedFileName, // שם נקי לשרת
+        filename: originalFileName, // שם מקורי
         mime_type: file.type || 'audio/wav',
         language: 'he',
         punctuate: true,
@@ -94,7 +81,7 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
     
     transcribeArgs = {
       blob: base64,
-      filename: cleanedFileName, // שם נקי גם לקבצים קטנים
+      filename: originalFileName, // שם מקורי
       mime_type: file.type || 'audio/wav',
       language: 'he',
       punctuate: true,
@@ -125,7 +112,7 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
   const startData = await safeJson(startRes);
   let transcript = extractTranscript(startData);
 
-   // ========== Polling (אם צריך) ==========
+    // ========== Polling (אם צריך) ==========
   if (!transcript) {
     const jobId =
       startData?.id || startData?.jobId ||
@@ -137,26 +124,21 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
       throw new Error('השרת לא החזיר תוצאה וגם לא מזהה משימה (jobId)');
     }
 
-    console.log('Starting polling with jobId:', jobId);
-
-    // התחלת מעקב התקדמות
+    // התחלת מעקב התקדמות פשוט
     if (window.progressTracker) {
       window.progressTracker.start(file.size);
     }
 
-    showStatus('התמלול התחיל, מעקב אחר התקדמות...', 'processing');
+    showStatus('התמלול התחיל...', 'processing');
     
     let pollCount = 0;
     let consecutiveErrors = 0;
     const MAX_CONSECUTIVE_ERRORS = 5;
-    const MAX_POLL_COUNT = 300; // מקסימום 10 דקות (300 * 2 שניות)
 
     // Polling loop
-    while (pollCount < MAX_POLL_COUNT) {
+    while (true) {
       await delay(2000);
       pollCount++;
-      
-      console.log(`Polling attempt ${pollCount}...`);
 
       try {
         // Polling עם GET
@@ -176,27 +158,30 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
           
           if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
             if (window.progressTracker) window.progressTracker.stop(false);
-            throw new Error(`Polling נכשל ${MAX_CONSECUTIVE_ERRORS} פעמים ברצף: ${pollRes.status} – ${errText}`);
+            throw new Error(`שגיאת חיבור: ${pollRes.status}`);
           }
-          continue; // ננסה שוב
+          continue;
         }
 
-        // איפוס מונה שגיאות אם הצלחנו
+        // איפוס מונה שגיאות
         consecutiveErrors = 0;
 
         const pollData = await safeJson(pollRes);
-        console.log('Poll response:', pollData);
         
-        // עדכון התקדמות פשוט - מבוסס על מספר הפעמים
-        const estimatedProgress = Math.min(95, pollCount * 2); // עולה ב-2% כל פעם עד 95%
-        if (window.progressTracker) {
+        // עדכון אחוז התקדמות אם יש
+        const serverProgress = extractProgress(pollData);
+        if (serverProgress !== null && window.progressTracker) {
+          window.progressTracker.updateProgress(serverProgress);
+        } else if (pollCount % 5 === 0 && window.progressTracker) {
+          // אם אין התקדמות מהשרת, מעדכנים באופן הדרגתי
+          const estimatedProgress = Math.min(95, pollCount * 2);
           window.progressTracker.updateProgress(estimatedProgress);
         }
         
         // בדיקת תמלול
         transcript = extractTranscript(pollData);
         if (transcript) {
-          console.log('Transcript received successfully!');
+          console.log('Transcript received successfully');
           break;
         }
 
@@ -214,58 +199,27 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
                           pollData?.output?.error || pollData?.result?.error;
             console.error('Job failed:', pollData);
             if (window.progressTracker) window.progressTracker.stop(false);
-            throw new Error(`המשימה נכשלה בצד הספק (status=${status})${reason ? ` – ${reason}` : ''}`);
+            throw new Error(`התמלול נכשל${reason ? `: ${reason}` : ''}`);
           }
 
           // בדיקת סיום
           if (/completed|succeeded|success|done|finished/i.test(String(status))) {
-            console.log('Job completed, extracting transcript...');
             transcript = extractTranscript(pollData);
             if (transcript) {
               console.log('Job completed with transcript');
               break;
             }
             console.warn('Job completed but no transcript found:', pollData);
-            
-            // ננסה עוד כמה פעמים
             if (pollCount > 5) {
-              // אם אחרי 5 ניסיונות אין תמלול, נבדוק אם יש טקסט כלשהו
-              if (pollData?.output || pollData?.result) {
-                console.log('Trying to extract any text from output...');
-                const anyText = JSON.stringify(pollData);
-                if (anyText.includes('text')) {
-                  // ננסה לחלץ טקסט בכל דרך אפשרית
-                  transcript = { 
-                    text: 'התמלול הושלם אך הטקסט לא זוהה במבנה הצפוי. בדוק בלוגים.',
-                    segments: []
-                  };
-                  console.error('Unexpected response structure:', pollData);
-                  break;
-                }
-              }
-              
               if (window.progressTracker) window.progressTracker.stop(false);
-              throw new Error('סיום דווח אך אין תמלול בתשובה');
+              throw new Error('התמלול הסתיים ללא תוצאה');
             }
           }
-          
-          // סטטוסים של תהליך רץ
-          if (/running|in_progress|processing|in_queue/i.test(String(status))) {
-            console.log('Job is still running...');
-          }
-        }
-        
-        // בדיקה אם המשתמש ביטל
-        if (window.progressTracker && window.progressTracker.isCompleted) {
-          console.log('User cancelled transcription');
-          throw new Error('התמלול בוטל על ידי המשתמש');
         }
         
       } catch (error) {
-        console.error('Error in polling:', error);
-        
         // אם זו לא שגיאת רשת, נזרוק אותה
-        if (!error.message.includes('fetch') && !error.message.includes('Failed to fetch')) {
+        if (!error.message.includes('fetch')) {
           throw error;
         }
         
@@ -275,15 +229,9 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
         
         if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
           if (window.progressTracker) window.progressTracker.stop(false);
-          throw new Error(`שגיאת רשת - נכשל ${MAX_CONSECUTIVE_ERRORS} פעמים ברצף`);
+          throw new Error(`שגיאת רשת`);
         }
       }
-    }
-
-    // אם הגענו למקסימום polling
-    if (pollCount >= MAX_POLL_COUNT) {
-      if (window.progressTracker) window.progressTracker.stop(false);
-      throw new Error('התמלול לוקח זמן רב מדי (מעל 10 דקות). נסה שוב.');
     }
 
     if (!transcript) {
@@ -300,10 +248,7 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
       : [{ start: 0, end: 0, text: transcript.text }]
   };
 
-  if (typeof progressTimer !== 'undefined') {
-    clearInterval(progressTimer);
-  }
-
+  // עצירת מעקב התקדמות - הצלחה!
   if (window.progressTracker) {
     window.progressTracker.stop(true);
   }
@@ -311,51 +256,15 @@ async function performIvritTranscription(file, runpodApiKey, endpointId, workerU
   finalizeProgress();
   displayResults();
   showStatus('התמלול הושלם בהצלחה ✔️', 'success');
-}
 
-// ===== פונקציות עזר =====
+// ===== פונקציות עזר (ללא שינוי) =====
 
-// פונקציה לחילוץ אחוז התקדמות מתשובת השרת
-function extractProgress(obj) {
-  if (!obj || typeof obj !== 'object') return null;
-  
-  // חיפוש בכל המיקומים האפשריים
-  const possibleFields = [
-    obj.progress,
-    obj.percent,
-    obj.percentage,
-    obj.completion,
-    obj.data?.progress,
-    obj.data?.percent,
-    obj.output?.progress,
-    obj.status?.progress,
-    obj.result?.progress
-  ];
-  
-  for (const field of possibleFields) {
-    if (typeof field === 'number' && field >= 0 && field <= 100) {
-      return field;
-    }
-    // אם זה string שמייצג מספר
-    if (typeof field === 'string') {
-      const num = parseFloat(field);
-      if (!isNaN(num) && num >= 0 && num <= 100) {
-        return num;
-      }
-    }
-  }
-  
-  return null;
-}
-
-// הסרת prefix של data URL
 function stripDataUrlPrefix(dataUrl) {
   if (typeof dataUrl !== 'string') return '';
   const idx = dataUrl.indexOf('base64,');
   return idx >= 0 ? dataUrl.slice(idx + 7) : dataUrl;
 }
 
-// המרת קובץ ל-Data URL
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -365,12 +274,10 @@ function fileToDataUrl(file) {
   });
 }
 
-// השהייה
 function delay(ms) { 
   return new Promise(res => setTimeout(res, ms)); 
 }
 
-// פרסור JSON בטוח
 async function safeJson(res) {
   try { 
     return await res.json(); 
@@ -381,7 +288,6 @@ async function safeJson(res) {
   }
 }
 
-// חילוץ תמלול מתשובת השרת
 function extractTranscript(obj) {
   if (!obj || typeof obj !== 'object') return null;
   
