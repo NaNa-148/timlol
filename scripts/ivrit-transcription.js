@@ -302,14 +302,18 @@ function extractProgress(obj) {
       : [{ start: 0, end: 0, text: transcript.text }]
   };
 
-if (typeof progressTimer !== 'undefined') {
+  // עצירת מעקב התקדמות - חשוב!
+  if (window.progressTracker) {
+    window.progressTracker.stop(true);
+  }
+
+  if (typeof progressTimer !== 'undefined') {
     clearInterval(progressTimer);
-}
+  }
 
   finalizeProgress();
   displayResults();
   showStatus('התמלול הושלם בהצלחה ✔️', 'success');
-}
 
 // ===== פונקציות עזר (ללא שינוי) =====
 
