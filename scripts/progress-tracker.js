@@ -13,6 +13,7 @@ class TranscriptionProgressTracker {
         this.updateInterval = null;
         this.isCompleted = false;
         this.lastProgressValue = 0;
+        this.currentProgress = 0; // התקדמות נוכחית
         
         // הגדרות
         this.UPDATE_FREQUENCY = 1000; // עדכון כל שנייה
@@ -24,10 +25,13 @@ class TranscriptionProgressTracker {
         this.startTime = Date.now();
         this.fileSize = fileSize;
         this.isCompleted = false;
+        this.currentProgress = 0;
         
         // התחלת עדכון ממשק
         this.updateInterval = setInterval(() => {
-            this.updateUI();
+            if (!this.isCompleted) {
+                this.updateUI();
+            }
         }, this.UPDATE_FREQUENCY);
         
         console.log(`Started tracking: ${this.formatFileSize(fileSize)}`);
@@ -37,6 +41,7 @@ class TranscriptionProgressTracker {
     stop(success = true) {
         this.isCompleted = true;
         
+        // עצירת העדכון האוטומטי
         if (this.updateInterval) {
             clearInterval(this.updateInterval);
             this.updateInterval = null;
@@ -53,8 +58,12 @@ class TranscriptionProgressTracker {
         const now = Date.now();
         const elapsed = now - this.startTime;
         
-        // עדכון ההתקדמות
-        if (processedBytes > this.lastProgressValue) {
+        // חישוב אחוז התקדמות מהבייטים
+        const progress = Math.min(95, (processedBytes / this.fileSize) * 100);
+        
+        // עדכון רק אם יש התקדמות
+        if (progress > this.currentProgress) {
+            this.currentProgress = progress;
             this.lastProgressValue = processedBytes;
         }
         
@@ -68,14 +77,29 @@ class TranscriptionProgressTracker {
         if (this.measurements.length > 20) {
             this.measurements.shift();
         }
+        
+        // עדכון מיידי של הבר
+        this.updateProgressBar();
     }
     
-    // חישוב אחוז התקדמות
-    calculateProgress() {
-        if (this.measurements.length === 0) return 0;
-        
-        const lastMeasurement = this.measurements[this.measurements.length - 1];
-        return Math.min(99.9, (lastMeasurement.processed / this.fileSize) * 100);
+    // עדכון בר התקדמות בלבד
+    updateProgressBar() {
+        const progressFill = document.getElementById('progressFill');
+        if (progressFill) {
+            // אם יש התקדמות ממשית, השתמש בה
+            // אחרת, הערכה על פי זמן (עבור קובץ 70MB ~ 2 דקות)
+            let displayProgress = this.currentProgress;
+            
+            if (displayProgress < 5 && this.startTime) {
+                // הערכה בסיסית לפי זמן אם אין התקדמות
+                const elapsed = Date.now() - this.startTime;
+                const estimatedTotal = 120000; // 2 דקות בממוצע
+                displayProgress = Math.min(90, (elapsed / estimatedTotal) * 100);
+            }
+            
+            progressFill.style.width = `${displayProgress}%`;
+            progressFill.style.background = 'linear-gradient(90deg, #667eea, #764ba2)';
+        }
     }
     
     // עדכון ממשק משתמש
@@ -83,18 +107,13 @@ class TranscriptionProgressTracker {
         if (this.isCompleted) return;
         
         const elapsed = Date.now() - this.startTime;
-        const progress = this.calculateProgress();
         
         // עדכון בר התקדמות
-        const progressFill = document.getElementById('progressFill');
-        if (progressFill) {
-            progressFill.style.width = `${progress}%`;
-            progressFill.style.background = 'linear-gradient(90deg, #667eea, #764ba2)';
-        }
+        this.updateProgressBar();
         
-        // עדכון טקסט סטטוס
+        // עדכון טקסט סטטוס - ללא אחוזים
         const elapsedStr = this.formatTime(elapsed);
-        const statusText = `מעבד... | ${progress.toFixed(1)}% | זמן שעבר: ${elapsedStr}`;
+        const statusText = `בתהליך... | זמן שעבר: ${elapsedStr}`;
         this.updateStatusText(statusText, 'processing');
     }
     
@@ -102,26 +121,28 @@ class TranscriptionProgressTracker {
     showFinalStatus(success, totalTime) {
         const timeStr = this.formatTime(totalTime);
         
+        // עדכון בר התקדמות ל-100%
+        const progressFill = document.getElementById('progressFill');
+        if (progressFill) {
+            progressFill.style.width = '100%';
+        }
+        
         if (success) {
-            const message = `התמלול הושלם בהצלחה! ⏱️ זמן כולל: ${timeStr}`;
+            const message = `בוצע! ⏱️ זמן כולל: ${timeStr}`;
             this.updateStatusText(message, 'success');
             if (window.showStatus) window.showStatus(message, 'success');
         } else {
-            const message = `התמלול נכשל אחרי ${timeStr}`;
+            const message = `נכשל אחרי ${timeStr}`;
             this.updateStatusText(message, 'error');
             if (window.showStatus) window.showStatus(message, 'error');
         }
         
-        // איפוס בר התקדמות
+        // איפוס בר התקדמות אחרי 3 שניות
         setTimeout(() => {
-            const progressFill = document.getElementById('progressFill');
             if (progressFill) {
-                progressFill.style.width = '100%';
-                setTimeout(() => {
-                    progressFill.style.width = '0%';
-                }, 500);
+                progressFill.style.width = '0%';
             }
-        }, 2000);
+        }, 3000);
     }
     
     // עדכון טקסט סטטוס
