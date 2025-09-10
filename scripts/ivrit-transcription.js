@@ -314,6 +314,7 @@ function extractProgress(obj) {
   finalizeProgress();
   displayResults();
   showStatus('התמלול הושלם בהצלחה ✔️', 'success');
+}
 
 // ===== פונקציות עזר (ללא שינוי) =====
 
